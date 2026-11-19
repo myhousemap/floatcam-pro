@@ -1,0 +1,25 @@
+name: FloatCamPro
+options:
+  bundleIdPrefix: com.floatcam
+  deploymentTarget:
+    iOS: 16.0
+targets:
+  FloatCamPro:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: ios/FloatCamPro
+    info:
+      path: ios/FloatCamPro/App/Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.floatcam.pro
+        DEVELOPMENT_TEAM: ""
+        CODE_SIGNING_REQUIRED: "NO"
+        CODE_SIGN_IDENTITY: ""
+        CODE_SIGNING_ALLOWED: "NO"
+        GENERATE_INFOPLIST_FILE: "NO"
+        SWIFT_VERSION: "5.9"
+        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: "1.0.0"

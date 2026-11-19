@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FloatCam Pro</string>
+    <string name="tile_name">FloatCam</string>
+    <string name="notification_channel_name">Floating Camera Service</string>
+    <string name="notification_channel_desc">Shows active floating camera overlay controls</string>
+    <string name="notification_title_active">FloatCam Pro is Active</string>
+    <string name="notification_title_recording">FloatCam Pro is Recording</string>
+    <string name="notification_content">Tap notification to open app or use quick actions below</string>
+    <string name="action_show_hide">Toggle Window</string>
+    <string name="action_record">Record</string>
+    <string name="action_stop_record">Stop Recording</string>
+    <string name="action_close">Exit Overlay</string>
+</resources>

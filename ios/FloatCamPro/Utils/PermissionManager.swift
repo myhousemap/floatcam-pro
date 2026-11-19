@@ -1,0 +1,89 @@
+import AVFoundation
+import Photos
+import UIKit
+
+public final class PermissionManager: ObservableObject {
+    public static let shared = PermissionManager()
+    
+    @Published public var cameraGranted: Bool = false
+    @Published public var microphoneGranted: Bool = false
+    @Published public var photoLibraryGranted: Bool = false
+    
+    public var allRequiredGranted: Bool {
+        cameraGranted && photoLibraryGranted
+    }
+    
+    private init() {
+        checkPermissions()
+    }
+    
+    public func checkPermissions() {
+        // Camera
+        let cameraStatus = AVCaptureDevice.authorizationStatus(for: .video)
+        DispatchQueue.main.async {
+            self.cameraGranted = (cameraStatus == .authorized)
+        }
+        
+        // Microphone
+        if #available(iOS 17.0, *) {
+            let micStatus = AVAudioApplication.shared.recordPermission
+            DispatchQueue.main.async {
+                self.microphoneGranted = (micStatus == .granted)
+            }
+        } else {
+            let micStatus = AVAudioSession.sharedInstance().recordPermission
+            DispatchQueue.main.async {
+                self.microphoneGranted = (micStatus == .granted)
+            }
+        }
+        
+        // Photo Library
+        let photoStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+        DispatchQueue.main.async {
+            self.photoLibraryGranted = (photoStatus == .authorized || photoStatus == .limited)
+        }
+    }
+    
+    public func requestCameraPermission(completion: @escaping (Bool) -> Void) {
+        AVCaptureDevice.requestAccess(for: .video) { granted in
+            DispatchQueue.main.async {
+                self.cameraGranted = granted
+                completion(granted)
+            }
+        }
+    }
+    
+    public func requestMicrophonePermission(completion: @escaping (Bool) -> Void) {
+        if #available(iOS 17.0, *) {
+            AVAudioApplication.requestRecordPermission { granted in
+                DispatchQueue.main.async {
+                    self.microphoneGranted = granted
+                    completion(granted)
+                }
+            }
+        } else {
+            AVAudioSession.sharedInstance().requestRecordPermission { granted in
+                DispatchQueue.main.async {
+                    self.microphoneGranted = granted
+                    completion(granted)
+                }
+            }
+        }
+    }
+    
+    public func requestPhotoLibraryPermission(completion: @escaping (Bool) -> Void) {
+        PHPhotoLibrary.requestAuthorization(for: .readWrite) { status in
+            DispatchQueue.main.async {
+                let granted = (status == .authorized || status == .limited)
+                self.photoLibraryGranted = granted
+                completion(granted)
+            }
+        }
+    }
+    
+    public func openAppSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString),
+              UIApplication.shared.canOpenURL(url) else { return }
+        UIApplication.shared.open(url)
+    }
+}

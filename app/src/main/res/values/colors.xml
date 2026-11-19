@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="obsidian_bg">#0B0D12</color>
+    <color name="obsidian_surface">#151922</color>
+    <color name="obsidian_surface_variant">#1E2330</color>
+    <color name="obsidian_border">#232938</color>
+    <color name="primary_accent">#4F8CFF</color>
+    <color name="recording_red">#FF4D5A</color>
+    <color name="recording_red_dark">#D62839</color>
+    <color name="text_primary">#F3F5FA</color>
+    <color name="text_secondary">#9DA5B8</color>
+    <color name="glass_hud_bg">#B30B0D12</color>
+    <color name="glass_hud_border">#334F8CFF</color>
+    <color name="white">#FFFFFF</color>
+    <color name="transparent">#00000000</color>
+</resources>

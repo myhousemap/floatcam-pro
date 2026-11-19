@@ -1,0 +1,312 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/rootOverlayView"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:clipChildren="false"
+    android:clipToPadding="false">
+
+    <!-- Normal Floating Window Container -->
+    <FrameLayout
+        android:id="@+id/windowContainer"
+        android:layout_width="240dp"
+        android:layout_height="240dp"
+        android:clipChildren="false"
+        android:clipToPadding="false">
+
+        <!-- Outer Glowing / Border Frame -->
+        <FrameLayout
+            android:id="@+id/borderFrame"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/bg_glass_hud">
+
+            <!-- Camera View Container (Outline Provider clips this) -->
+            <FrameLayout
+                android:id="@+id/previewContainer"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_margin="3dp">
+
+                <androidx.camera.view.PreviewView
+                    android:id="@+id/previewView"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent" />
+
+            </FrameLayout>
+
+            <!-- Touch Capture View for HUD toggling and pinch-to-zoom -->
+            <View
+                android:id="@+id/touchOverlayView"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@color/transparent" />
+
+            <!-- Glassmorphic HUD Controls (Auto-fades after 3s) -->
+            <RelativeLayout
+                android:id="@+id/hudContainer"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:padding="6dp"
+                android:clipChildren="false">
+
+                <!-- TOP HUD BAR -->
+                <LinearLayout
+                    android:id="@+id/topBar"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_alignParentTop="true"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:background="@drawable/bg_glass_hud"
+                    android:paddingHorizontal="4dp"
+                    android:paddingVertical="2dp">
+
+                    <!-- Live Recording Badge -->
+                    <LinearLayout
+                        android:id="@+id/recordingBadge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:background="@drawable/bg_recording_badge"
+                        android:visibility="gone"
+                        tools:visibility="visible">
+
+                        <View
+                            android:id="@+id/recordingPulseDot"
+                            android:layout_width="8dp"
+                            android:layout_height="8dp"
+                            android:layout_marginEnd="4dp"
+                            android:background="@drawable/bg_minimized_pill" />
+
+                        <TextView
+                            android:id="@+id/tvRecordingTimer"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="00:00"
+                            android:textColor="@color/white"
+                            android:textSize="11sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <Space
+                        android:layout_width="0dp"
+                        android:layout_height="1dp"
+                        android:layout_weight="1" />
+
+                    <!-- Quick Torch Toggle -->
+                    <ImageButton
+                        android:id="@+id/btnTorch"
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:background="@drawable/bg_control_button"
+                        android:src="@drawable/ic_flash_off"
+                        android:contentDescription="Torch"
+                        android:padding="5dp" />
+
+                    <!-- Mirror Toggle -->
+                    <ImageButton
+                        android:id="@+id/btnMirror"
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:layout_marginStart="2dp"
+                        android:background="@drawable/bg_control_button"
+                        android:src="@drawable/ic_mirror"
+                        android:contentDescription="Mirror Camera"
+                        android:padding="5dp" />
+
+                    <!-- Shape Preset Toggle -->
+                    <ImageButton
+                        android:id="@+id/btnShape"
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:layout_marginStart="2dp"
+                        android:background="@drawable/bg_control_button"
+                        android:src="@drawable/ic_aspect_ratio"
+                        android:contentDescription="Change Shape"
+                        android:padding="5dp" />
+
+                    <!-- Lock Window Movement -->
+                    <ImageButton
+                        android:id="@+id/btnLock"
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:layout_marginStart="2dp"
+                        android:background="@drawable/bg_control_button"
+                        android:src="@drawable/ic_unlock"
+                        android:contentDescription="Lock Overlay"
+                        android:padding="5dp" />
+
+                    <!-- Minimize Window -->
+                    <ImageButton
+                        android:id="@+id/btnMinimize"
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:layout_marginStart="2dp"
+                        android:background="@drawable/bg_control_button"
+                        android:src="@drawable/ic_minimize"
+                        android:contentDescription="Minimize Overlay"
+                        android:padding="5dp" />
+
+                    <!-- Close Window & Stop Service -->
+                    <ImageButton
+                        android:id="@+id/btnClose"
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:layout_marginStart="2dp"
+                        android:background="@drawable/bg_control_button"
+                        android:src="@drawable/ic_close"
+                        android:contentDescription="Close FloatCam"
+                        android:padding="5dp" />
+
+                </LinearLayout>
+
+                <!-- BOTTOM HUD BAR -->
+                <LinearLayout
+                    android:id="@+id/bottomBar"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_alignParentBottom="true"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:background="@drawable/bg_glass_hud"
+                    android:paddingHorizontal="4dp"
+                    android:paddingVertical="4dp">
+
+                    <!-- Opacity Slider -->
+                    <LinearLayout
+                        android:id="@+id/opacityContainer"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingHorizontal="4dp">
+
+                        <TextView
+                            android:id="@+id/tvOpacityLabel"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="100%"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="9sp" />
+
+                        <SeekBar
+                            android:id="@+id/sbOpacity"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:max="70"
+                            android:progress="70"
+                            android:thumbTint="@color/primary_accent"
+                            android:progressTint="@color/primary_accent" />
+                    </LinearLayout>
+
+                    <!-- Main Actions: Flip, Shutter, Record, Pause -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center"
+                        android:paddingTop="2dp">
+
+                        <!-- Flip Camera -->
+                        <ImageButton
+                            android:id="@+id/btnFlipCamera"
+                            android:layout_width="32dp"
+                            android:layout_height="32dp"
+                            android:background="@drawable/bg_control_button"
+                            android:src="@drawable/ic_flip_camera"
+                            android:contentDescription="Flip Camera"
+                            android:padding="6dp" />
+
+                        <Space
+                            android:layout_width="12dp"
+                            android:layout_height="1dp" />
+
+                        <!-- Photo Shutter -->
+                        <ImageButton
+                            android:id="@+id/btnShutter"
+                            android:layout_width="38dp"
+                            android:layout_height="38dp"
+                            android:background="@drawable/bg_control_button"
+                            android:src="@drawable/ic_shutter"
+                            android:contentDescription="Take Photo"
+                            android:padding="6dp" />
+
+                        <Space
+                            android:layout_width="12dp"
+                            android:layout_height="1dp" />
+
+                        <!-- Video Record / Stop -->
+                        <ImageButton
+                            android:id="@+id/btnRecord"
+                            android:layout_width="38dp"
+                            android:layout_height="38dp"
+                            android:background="@drawable/bg_control_button"
+                            android:src="@drawable/ic_record_start"
+                            android:contentDescription="Record Video"
+                            android:padding="6dp" />
+
+                        <!-- Pause / Resume (Visible during recording) -->
+                        <ImageButton
+                            android:id="@+id/btnPauseResume"
+                            android:layout_width="32dp"
+                            android:layout_height="32dp"
+                            android:layout_marginStart="12dp"
+                            android:background="@drawable/bg_control_button"
+                            android:src="@drawable/ic_pause"
+                            android:contentDescription="Pause Recording"
+                            android:visibility="gone"
+                            tools:visibility="visible"
+                            android:padding="6dp" />
+
+                    </LinearLayout>
+
+                </LinearLayout>
+
+            </RelativeLayout>
+
+            <!-- Corner Resize Handle (Bottom-Right) -->
+            <ImageView
+                android:id="@+id/resizeHandle"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_gravity="bottom|end"
+                android:src="@drawable/ic_resize_handle"
+                android:contentDescription="Resize Handle" />
+
+        </FrameLayout>
+
+    </FrameLayout>
+
+    <!-- Minimized Floating Bubble / Pill (Visible when minimized) -->
+    <FrameLayout
+        android:id="@+id/minimizedBubble"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:background="@drawable/bg_minimized_pill"
+        android:elevation="8dp"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/ivBubbleIcon"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:layout_gravity="center"
+            android:src="@drawable/ic_tile_camera"
+            android:contentDescription="FloatCam Minimized" />
+
+        <View
+            android:id="@+id/bubbleRecordingDot"
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:layout_gravity="top|end"
+            android:layout_margin="4dp"
+            android:background="@drawable/bg_recording_badge"
+            android:visibility="gone" />
+
+    </FrameLayout>
+
+</FrameLayout>
