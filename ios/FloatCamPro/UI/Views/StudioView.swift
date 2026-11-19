@@ -297,7 +297,7 @@ public struct StudioView: View {
                 Image(systemName: icon)
                     .font(.system(size: 12))
                 Text(title)
-                    .font(.system(size: 12, weight: isSelected ? .bold : .normal))
+                    .font(.system(size: 12, weight: isSelected ? .bold : .regular))
             }
             .foregroundColor(isSelected ? .white : .textSecondary)
             .padding(.horizontal, 10)

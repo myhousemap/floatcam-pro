@@ -242,7 +242,7 @@ public struct SettingsView: View {
             HapticManager.shared.lightTap()
         }) {
             Text(title)
-                .font(.system(size: 12, weight: isSelected ? .bold : .normal))
+                .font(.system(size: 12, weight: isSelected ? .bold : .regular))
                 .foregroundColor(isSelected ? .white : .textSecondary)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
