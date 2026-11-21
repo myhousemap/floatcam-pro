@@ -92,12 +92,38 @@ public struct StudioView: View {
                     .padding(.horizontal)
                 }
                 
-                // Live Interactive Visual Mockup Card
+                // Live Interactive Visual Mockup Card with Live Viewfinder
                 studioMockupCard
                     .padding(.horizontal)
                 
-                // Primary Action Button (Launch / Stop Floating Camera)
+                // Primary Action Buttons
                 VStack(spacing: 12) {
+                    // 1. Picture-in-Picture Float Button (iOS System-Wide) - PRIMARY FOR OVER OTHER APPS
+                    Button(action: {
+                        if !cameraManager.isRunning {
+                            cameraManager.startSession(settings: settings)
+                        }
+                        if pipManager.isPiPActive {
+                            pipManager.stopPiP()
+                        } else {
+                            pipManager.startPiP()
+                        }
+                    }) {
+                        HStack(spacing: 10) {
+                            Image(systemName: pipManager.isPiPActive ? "pip.exit" : "pip.enter")
+                                .font(.system(size: 18, weight: .bold))
+                            Text(pipManager.isPiPActive ? "Floating Active (Tap to Stop)" : "Float Over Gemini & Other Apps (PiP)")
+                                .font(.system(size: 15, weight: .bold))
+                        }
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 56)
+                        .background(pipManager.isPiPActive ? Color.recordingRed : Color.primaryBlue)
+                        .clipShape(RoundedRectangle(cornerRadius: 18))
+                        .shadow(color: (pipManager.isPiPActive ? Color.recordingRed : Color.primaryBlue).opacity(0.4), radius: 8, y: 4)
+                    }
+                    
+                    // 2. In-App Floating Overlay Window
                     Button(action: {
                         if !isOverlayActive && !permissionManager.cameraGranted {
                             permissionManager.requestCameraPermission()
@@ -106,51 +132,49 @@ public struct StudioView: View {
                         withAnimation(.spring()) {
                             isOverlayActive.toggle()
                         }
-                        if isOverlayActive {
+                        if isOverlayActive && !cameraManager.isRunning {
                             cameraManager.startSession(settings: settings)
-                        } else {
-                            cameraManager.stopSession()
                         }
                         HapticManager.shared.mediumTap()
                     }) {
-                        HStack(spacing: 10) {
-                            Image(systemName: isOverlayActive ? "xmark" : "play.fill")
-                                .font(.system(size: 18, weight: .bold))
-                            Text(isOverlayActive ? "Stop Floating Camera" : "Launch Floating Camera")
-                                .font(.system(size: 16, weight: .bold))
+                        HStack(spacing: 8) {
+                            Image(systemName: isOverlayActive ? "xmark" : "square.on.square")
+                                .font(.system(size: 14, weight: .semibold))
+                            Text(isOverlayActive ? "Close In-App Overlay" : "Open In-App Overlay Window")
+                                .font(.system(size: 13, weight: .semibold))
                         }
-                        .foregroundColor(.white)
+                        .foregroundColor(.textSecondary)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 56)
-                        .background(isOverlayActive ? Color.recordingRed : Color.primaryBlue)
-                        .clipShape(RoundedRectangle(cornerRadius: 18))
-                        .shadow(color: (isOverlayActive ? Color.recordingRed : Color.primaryBlue).opacity(0.4), radius: 8, y: 4)
-                    }
-                    
-                    // Picture-in-Picture Float Button (iOS System-Wide)
-                    if pipManager.isPiPSupported {
-                        Button(action: {
-                            pipManager.setupPiP(with: cameraManager.session)
-                            pipManager.startPiP()
-                        }) {
-                            HStack(spacing: 8) {
-                                Image(systemName: "pip.enter")
-                                    .font(.system(size: 15, weight: .semibold))
-                                Text("Float Over Home & Apps (PiP)")
-                                    .font(.system(size: 14, weight: .semibold))
-                            }
-                            .foregroundColor(.primaryBlue)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 44)
-                            .background(Color.obsidianSurface)
-                            .clipShape(RoundedRectangle(cornerRadius: 14))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 14)
-                                    .stroke(Color.primaryBlue.opacity(0.5), lineWidth: 1)
-                            )
-                        }
+                        .frame(height: 44)
+                        .background(Color.obsidianSurface)
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14).stroke(Color.obsidianBorder, lineWidth: 1)
+                        )
                     }
                 }
+                .padding(.horizontal)
+                
+                // Explanatory Tip Box
+                HStack(spacing: 12) {
+                    Image(systemName: "lightbulb.fill")
+                        .font(.system(size: 18))
+                        .foregroundColor(.primaryBlue)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Float Over Gemini AI, Meta AI & Other Apps:")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.textPrimary)
+                        Text("Tap 'Float Over Gemini & Other Apps' above, or just swipe up to Home while camera is active. Your camera will float continuously above all other apps.")
+                            .font(.system(size: 11))
+                            .foregroundColor(.textSecondary)
+                    }
+                }
+                .padding(14)
+                .background(Color.obsidianSurface)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16).stroke(Color.primaryBlue.opacity(0.3), lineWidth: 1)
+                )
                 .padding(.horizontal)
                 
                 // Quick Studio Presets
@@ -233,12 +257,15 @@ public struct StudioView: View {
         .onAppear {
             isPulsing = true
             permissionManager.checkPermissions()
-            if isOverlayActive {
+            if permissionManager.cameraGranted && !cameraManager.isRunning {
                 cameraManager.startSession(settings: settings)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
             permissionManager.checkPermissions()
+            if permissionManager.cameraGranted && !cameraManager.isRunning {
+                cameraManager.startSession(settings: settings)
+            }
         }
     }
     
@@ -252,44 +279,60 @@ public struct StudioView: View {
                     RoundedRectangle(cornerRadius: 24).stroke(Color.obsidianBorder, lineWidth: 1)
                 )
             
-            // Mockup Shape Display
+            // Mockup Shape Display with Live Camera Feed
             VStack {
                 ZStack {
-                    // Frame
-                    mockupShape
-                        .fill(Color.obsidianSurfaceVariant.opacity(settings.opacity))
-                        .overlay(
-                            mockupShape.stroke(
-                                Color(hex: settings.borderColorHex),
-                                lineWidth: settings.borderWidth
-                            )
-                        )
-                        .frame(
-                            width: mockupWidth,
-                            height: mockupHeight
-                        )
-                    
-                    // Inner lens icon
-                    VStack(spacing: 6) {
-                        Circle()
-                            .fill(Color.obsidianBackground)
-                            .frame(width: 48, height: 48)
+                    if cameraManager.isRunning {
+                        PiPView(session: cameraManager.session, settings: settings)
+                            .clipShape(mockupShape)
                             .overlay(
-                                Circle().stroke(Color(hex: settings.borderColorHex).opacity(0.5), lineWidth: 1)
+                                mockupShape.stroke(
+                                    Color(hex: settings.borderColorHex),
+                                    lineWidth: settings.borderWidth
+                                )
                             )
+                            .frame(
+                                width: mockupWidth,
+                                height: mockupHeight
+                            )
+                            .shadow(color: Color(hex: settings.borderColorHex).opacity(0.3), radius: 8)
+                    } else {
+                        // Frame
+                        mockupShape
+                            .fill(Color.obsidianSurfaceVariant.opacity(settings.opacity))
                             .overlay(
-                                Image(systemName: (settings.lens == .front) ? "person.crop.circle" : "camera.fill")
-                                    .font(.system(size: 22))
-                                    .foregroundColor(Color(hex: settings.borderColorHex))
+                                mockupShape.stroke(
+                                    Color(hex: settings.borderColorHex),
+                                    lineWidth: settings.borderWidth
+                                )
+                            )
+                            .frame(
+                                width: mockupWidth,
+                                height: mockupHeight
                             )
                         
-                        Text(settings.shape.rawValue)
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(.textPrimary)
-                        
-                        Text("\(settings.resolution.rawValue) • \(settings.fps.label)")
-                            .font(.system(size: 9))
-                            .foregroundColor(.textSecondary)
+                        // Inner lens icon
+                        VStack(spacing: 6) {
+                            Circle()
+                                .fill(Color.obsidianBackground)
+                                .frame(width: 48, height: 48)
+                                .overlay(
+                                    Circle().stroke(Color(hex: settings.borderColorHex).opacity(0.5), lineWidth: 1)
+                                )
+                                .overlay(
+                                    Image(systemName: (settings.lens == .front) ? "person.crop.circle" : "camera.fill")
+                                        .font(.system(size: 22))
+                                        .foregroundColor(Color(hex: settings.borderColorHex))
+                                )
+                            
+                            Text(settings.shape.rawValue)
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(.textPrimary)
+                            
+                            Text("\(settings.resolution.rawValue) • \(settings.fps.label)")
+                                .font(.system(size: 9))
+                                .foregroundColor(.textSecondary)
+                        }
                     }
                 }
             }

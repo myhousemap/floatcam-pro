@@ -63,6 +63,11 @@ public final class CameraManager: NSObject, ObservableObject {
                 self.setupAudioInput()
             }
             
+            // Multitasking Camera Access (allows camera feed to stay live during PiP over other apps)
+            if self.session.isMultitaskingCameraAccessSupported {
+                self.session.isMultitaskingCameraAccessEnabled = true
+            }
+            
             // Outputs
             if self.session.canAddOutput(self.photoOutput) {
                 self.session.addOutput(self.photoOutput)
