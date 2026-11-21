@@ -35,7 +35,7 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             archive
 
-      - name: Package Unsigned IPA with Injected Privacy Descriptions
+      - name: Package Unsigned IPA with Injected Privacy Descriptions & Multitasking Capabilities
         run: |
           mkdir -p build/Payload
           cp -R build/FloatCamPro.xcarchive/Products/Applications/FloatCamPro.app build/Payload/
@@ -57,8 +57,13 @@ jobs:
           /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName 'FloatCam Pro'" "$PLIST" || \
           /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string 'FloatCam Pro'" "$PLIST"
 
-          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString '1.0.6'" "$PLIST" || \
-          /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string '1.0.6'" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString '1.0.7'" "$PLIST" || \
+          /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string '1.0.7'" "$PLIST"
+
+          # Ensure UIBackgroundModes contains audio and voip
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" "$PLIST" || true
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string audio" "$PLIST" || true
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:1 string voip" "$PLIST" || true
 
           echo "=== Verified Info.plist in FloatCamPro.app ==="
           plutil -p "$PLIST"
@@ -79,8 +84,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG_NAME="v1.0.6-build.${{ github.run_number }}"
+          TAG_NAME="v1.0.7-build.${{ github.run_number }}"
           gh release create "$TAG_NAME" build/FloatCamPro.ipa \
             --title "FloatCam Pro iOS ($TAG_NAME)" \
-            --notes "FloatCam Pro iOS v1.0.6 with lag-free live system-wide Picture-in-Picture floating over Gemini AI, Meta AI, Safari & all apps." \
+            --notes "FloatCam Pro iOS v1.0.7 with persistent multitasking camera access and live Picture-in-Picture floating over Gemini AI, Meta AI & all apps." \
             --latest

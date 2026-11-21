@@ -12,10 +12,14 @@ public final class PiPManager: NSObject, ObservableObject {
     
     public var pipController: AVPictureInPictureController?
     private var callVC: AVPictureInPictureVideoCallViewController?
-    private var pipPreviewLayer: AVCaptureVideoPreviewLayer?
-    private weak var activeSourceView: UIView?
+    private var previewLayer: AVCaptureVideoPreviewLayer?
+    private var cameraContainerView: UIView?
+    private weak var hostView: UIView?
     private var possibleObservation: NSKeyValueObservation?
     private var pendingStartPiP: Bool = false
+    
+    private var statusBadge: UIView?
+    private var statusLabel: UILabel?
     
     public override init() {
         super.init()
@@ -35,45 +39,79 @@ public final class PiPManager: NSObject, ObservableObject {
         }
     }
     
-    public func setupPiP(with sourceView: UIView, session: AVCaptureSession, settings: CameraSettings) {
+    public func setupPiP(with hostView: UIView, session: AVCaptureSession, settings: CameraSettings) {
         guard isPiPSupported else { return }
-        
-        self.activeSourceView = sourceView
+        self.hostView = hostView
         configureAudioSessionAsync()
         
         // 1. Create Video Call View Controller
-        let callViewController = AVPictureInPictureVideoCallViewController()
+        let callVC = AVPictureInPictureVideoCallViewController()
         let targetSize = pipSize(for: settings.shape)
-        callViewController.preferredContentSize = targetSize
+        callVC.preferredContentSize = targetSize
         
-        // 2. Add Preview View & Layer to Call VC
-        let pipView = UIView(frame: CGRect(origin: .zero, size: targetSize))
-        pipView.backgroundColor = .black
-        pipView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        callViewController.view.addSubview(pipView)
+        // 2. Setup Camera Container View
+        let cameraView = UIView(frame: hostView.bounds)
+        cameraView.backgroundColor = .black
+        cameraView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         
-        let previewLayer = AVCaptureVideoPreviewLayer(session: session)
-        previewLayer.frame = pipView.bounds
-        previewLayer.videoGravity = .resizeAspectFill
-        if let connection = previewLayer.connection, connection.isVideoMirroringSupported {
+        let preview = AVCaptureVideoPreviewLayer(session: session)
+        preview.videoGravity = .resizeAspectFill
+        preview.frame = cameraView.bounds
+        if let connection = preview.connection, connection.isVideoMirroringSupported {
             connection.automaticallyAdjustsVideoMirroring = false
             connection.isVideoMirrored = (settings.lens == .front && settings.mirrorFrontCamera)
         }
-        pipView.layer.addSublayer(previewLayer)
-        self.pipPreviewLayer = previewLayer
+        cameraView.layer.addSublayer(preview)
+        self.previewLayer = preview
+        self.cameraContainerView = cameraView
+        
+        // 3. Add HUD Overlay inside PiP window
+        let hudView = UIView(frame: CGRect(x: 10, y: 10, width: 110, height: 24))
+        hudView.backgroundColor = UIColor(white: 0.08, alpha: 0.75)
+        hudView.layer.cornerRadius = 12
+        hudView.layer.masksToBounds = true
+        hudView.layer.borderWidth = 1
+        hudView.layer.borderColor = UIColor(white: 0.3, alpha: 0.5).cgColor
+        
+        let dot = UIView(frame: CGRect(x: 8, y: 8, width: 8, height: 8))
+        dot.backgroundColor = UIColor(red: 0.06, green: 0.73, blue: 0.51, alpha: 1.0)
+        dot.layer.cornerRadius = 4
+        dot.layer.masksToBounds = true
+        hudView.addSubview(dot)
+        
+        let label = UILabel(frame: CGRect(x: 22, y: 4, width: 80, height: 16))
+        label.text = "FloatCam Live"
+        label.font = UIFont.systemFont(ofSize: 10, weight: .bold)
+        label.textColor = .white
+        hudView.addSubview(label)
+        
+        cameraView.addSubview(hudView)
+        self.statusBadge = hudView
+        self.statusLabel = label
+        
+        // 4. Mount cameraView into callVC.view
+        callVC.view.addSubview(cameraView)
+        cameraView.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            cameraView.topAnchor.constraint(equalTo: callVC.view.topAnchor),
+            cameraView.bottomAnchor.constraint(equalTo: callVC.view.bottomAnchor),
+            cameraView.leadingAnchor.constraint(equalTo: callVC.view.leadingAnchor),
+            cameraView.trailingAnchor.constraint(equalTo: callVC.view.trailingAnchor)
+        ])
         
         // Style Call VC
-        callViewController.view.layer.cornerRadius = (settings.shape == .circle) ? (targetSize.width / 2) : 22
-        callViewController.view.layer.masksToBounds = true
-        callViewController.view.layer.borderColor = UIColor(Color(hex: settings.borderColorHex)).cgColor
-        callViewController.view.layer.borderWidth = settings.borderWidth
+        applyStyling(to: callVC.view, settings: settings, size: targetSize)
+        self.callVC = callVC
         
-        self.callVC = callViewController
+        // 5. While in the app, display callVC.view directly inside hostView
+        callVC.view.frame = hostView.bounds
+        callVC.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        hostView.addSubview(callVC.view)
         
-        // 3. Create ContentSource with ON-SCREEN sourceView
+        // 6. Connect ContentSource: hostView is the sourceView in the window!
         let contentSource = AVPictureInPictureController.ContentSource(
-            activeVideoCallSourceView: sourceView,
-            contentViewController: callViewController
+            activeVideoCallSourceView: hostView,
+            contentViewController: callVC
         )
         
         let controller = AVPictureInPictureController(contentSource: contentSource)
@@ -97,8 +135,29 @@ public final class PiPManager: NSObject, ObservableObject {
         self.isPiPPossible = controller.isPictureInPicturePossible
     }
     
+    public func updateSettings(settings: CameraSettings) {
+        guard let callVC = callVC else { return }
+        let size = pipSize(for: settings.shape)
+        callVC.preferredContentSize = size
+        applyStyling(to: callVC.view, settings: settings, size: size)
+        
+        if let connection = previewLayer?.connection, connection.isVideoMirroringSupported {
+            let mirrored = (settings.lens == .front && settings.mirrorFrontCamera)
+            connection.automaticallyAdjustsVideoMirroring = false
+            connection.isVideoMirrored = mirrored
+        }
+    }
+    
+    private func applyStyling(to view: UIView, settings: CameraSettings, size: CGSize) {
+        view.layer.cornerRadius = (settings.shape == .circle) ? (size.width / 2) : 22
+        view.layer.masksToBounds = true
+        view.layer.borderColor = UIColor(Color(hex: settings.borderColorHex)).cgColor
+        view.layer.borderWidth = settings.borderWidth
+    }
+    
     public func updatePiPFrame(bounds: CGRect) {
-        pipPreviewLayer?.frame = bounds
+        guard bounds.width > 0, bounds.height > 0 else { return }
+        previewLayer?.frame = bounds
     }
     
     public func startPiP() {
@@ -113,9 +172,7 @@ public final class PiPManager: NSObject, ObservableObject {
             controller.startPictureInPicture()
             HapticManager.shared.lightTap()
         } else {
-            // Queue start as soon as Pegasus PiP daemon confirms possible
             pendingStartPiP = true
-            // Also attempt fallback after short delay
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
                 guard let self = self, let ctrl = self.pipController else { return }
                 if ctrl.isPictureInPicturePossible && !self.isPiPActive {
@@ -155,6 +212,14 @@ extension PiPManager: AVPictureInPictureControllerDelegate {
     public func pictureInPictureControllerDidStopPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
         isPiPActive = false
         pendingStartPiP = false
+        
+        // Re-attach callVC.view back into hostView when returning from floating mode
+        if let callVC = callVC, let hostView = hostView, callVC.view.superview !== hostView {
+            callVC.view.frame = hostView.bounds
+            callVC.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            hostView.addSubview(callVC.view)
+            previewLayer?.frame = callVC.view.bounds
+        }
     }
     
     public func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, failedToStartPictureInPictureWithError error: Error) {
