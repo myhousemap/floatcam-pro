@@ -96,6 +96,10 @@ public struct StudioView: View {
                 studioMockupCard
                     .padding(.horizontal)
                 
+                // Studio Live Camera Deck (Flip, Record Video, Shutter, Torch)
+                studioControlDeck
+                    .padding(.horizontal)
+                
                 // Primary Action Buttons
                 VStack(spacing: 12) {
                     // 1. Picture-in-Picture Float Button (iOS System-Wide) - PRIMARY FOR OVER OTHER APPS
@@ -109,15 +113,22 @@ public struct StudioView: View {
                             pipManager.startPiP()
                         }
                     }) {
-                        HStack(spacing: 10) {
+                        HStack(spacing: 12) {
                             Image(systemName: pipManager.isPiPActive ? "pip.exit" : "pip.enter")
-                                .font(.system(size: 18, weight: .bold))
-                            Text(pipManager.isPiPActive ? "Floating Active (Tap to Stop)" : "Float Over Gemini & Other Apps (PiP)")
-                                .font(.system(size: 15, weight: .bold))
+                                .font(.system(size: 20, weight: .bold))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(pipManager.isPiPActive ? "Floating Active (Tap to Stop)" : "Float Over Gemini & Other Apps (PiP)")
+                                    .font(.system(size: 15, weight: .bold))
+                                Text(pipManager.isPiPActive ? "Camera is currently pinned over other apps" : "Pinch to resize • Drag anywhere • Control via Control Center")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.white.opacity(0.8))
+                            }
+                            Spacer()
                         }
                         .foregroundColor(.white)
+                        .padding(.horizontal, 16)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 56)
+                        .frame(height: 58)
                         .background(pipManager.isPiPActive ? Color.recordingRed : Color.primaryBlue)
                         .clipShape(RoundedRectangle(cornerRadius: 18))
                         .shadow(color: (pipManager.isPiPActive ? Color.recordingRed : Color.primaryBlue).opacity(0.4), radius: 8, y: 4)
@@ -137,15 +148,22 @@ public struct StudioView: View {
                         }
                         HapticManager.shared.mediumTap()
                     }) {
-                        HStack(spacing: 8) {
-                            Image(systemName: isOverlayActive ? "xmark" : "square.on.square")
-                                .font(.system(size: 14, weight: .semibold))
-                            Text(isOverlayActive ? "Close In-App Overlay" : "Open In-App Overlay Window")
-                                .font(.system(size: 13, weight: .semibold))
+                        HStack(spacing: 10) {
+                            Image(systemName: isOverlayActive ? "xmark.circle.fill" : "square.on.square")
+                                .font(.system(size: 16, weight: .semibold))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(isOverlayActive ? "Close In-App Overlay" : "Open In-App Overlay Window")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundColor(.textPrimary)
+                                Text("Window with on-screen buttons, resize handle & bubble minimize")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.textSecondary)
+                            }
+                            Spacer()
                         }
-                        .foregroundColor(.textSecondary)
+                        .padding(.horizontal, 14)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 44)
+                        .frame(height: 50)
                         .background(Color.obsidianSurface)
                         .clipShape(RoundedRectangle(cornerRadius: 14))
                         .overlay(
@@ -155,27 +173,9 @@ public struct StudioView: View {
                 }
                 .padding(.horizontal)
                 
-                // Explanatory Tip Box
-                HStack(spacing: 12) {
-                    Image(systemName: "lightbulb.fill")
-                        .font(.system(size: 18))
-                        .foregroundColor(.primaryBlue)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Float Over Gemini AI, Meta AI & Other Apps:")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(.textPrimary)
-                        Text("Tap 'Float Over Gemini & Other Apps' above, or just swipe up to Home while camera is active. Your camera will float continuously above all other apps.")
-                            .font(.system(size: 11))
-                            .foregroundColor(.textSecondary)
-                    }
-                }
-                .padding(14)
-                .background(Color.obsidianSurface)
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16).stroke(Color.primaryBlue.opacity(0.3), lineWidth: 1)
-                )
-                .padding(.horizontal)
+                // iOS Floating Controls & Gestures Guide
+                floatingGuideCard
+                    .padding(.horizontal)
                 
                 // Quick Studio Presets
                 VStack(alignment: .leading, spacing: 16) {
@@ -220,6 +220,7 @@ public struct StudioView: View {
                             studioChip(
                                 title: "Mic On",
                                 icon: "mic.fill",
+                                subLabel: "Clear Sound",
                                 isSelected: settings.audioEnabled
                             ) {
                                 settings.audioEnabled = true
@@ -227,6 +228,7 @@ public struct StudioView: View {
                             studioChip(
                                 title: "Muted",
                                 icon: "mic.slash.fill",
+                                subLabel: "Silent Video",
                                 isSelected: !settings.audioEnabled
                             ) {
                                 settings.audioEnabled = false
@@ -259,6 +261,7 @@ public struct StudioView: View {
             if permissionManager.cameraGranted && !cameraManager.isRunning {
                 cameraManager.startSession(settings: settings)
             }
+            RemoteControlManager.shared.setupRemoteCommands()
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
             permissionManager.checkPermissions()
@@ -266,6 +269,145 @@ public struct StudioView: View {
                 cameraManager.startSession(settings: settings)
             }
         }
+    }
+    
+    // MARK: - Dedicated Studio Camera Control Deck
+    private var studioControlDeck: some View {
+        VStack(spacing: 12) {
+            // Live Recording Timer Indicator (when recording is active)
+            if cameraManager.isRecording {
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(Color.recordingRed)
+                        .frame(width: 10, height: 10)
+                    Text("RECORDING LIVE")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.recordingRed)
+                    Spacer()
+                    Text(formatDuration(cameraManager.recordingDuration))
+                        .font(.system(size: 15, weight: .heavy, design: .monospaced))
+                        .foregroundColor(.white)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(Color.recordingRed.opacity(0.18))
+                .clipShape(Capsule())
+                .overlay(
+                    Capsule().stroke(Color.recordingRed.opacity(0.4), lineWidth: 1)
+                )
+                .transition(.opacity.combined(with: .scale))
+            }
+            
+            // Camera Buttons Deck
+            HStack(spacing: 24) {
+                // 1. Flip Camera Button
+                Button(action: {
+                    cameraManager.flipCamera()
+                    settings.lens = (settings.lens == .front) ? .back : .front
+                    HapticManager.shared.lightTap()
+                }) {
+                    VStack(spacing: 4) {
+                        Circle()
+                            .fill(Color.obsidianSurfaceVariant)
+                            .frame(width: 52, height: 52)
+                            .overlay(
+                                Image(systemName: "camera.rotate.fill")
+                                    .font(.system(size: 20, weight: .semibold))
+                                    .foregroundColor(.textPrimary)
+                            )
+                            .overlay(
+                                Circle().stroke(Color.obsidianBorder, lineWidth: 1)
+                            )
+                        Text(settings.lens == .front ? "Front" : "Rear")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.textSecondary)
+                    }
+                }
+                
+                // 2. Video Record Button (Hero Shutter)
+                Button(action: {
+                    cameraManager.toggleRecording()
+                    HapticManager.shared.recordHaptic()
+                }) {
+                    VStack(spacing: 4) {
+                        ZStack {
+                            Circle()
+                                .stroke(Color.recordingRed.opacity(0.4), lineWidth: 4)
+                                .frame(width: 72, height: 72)
+                            
+                            if cameraManager.isRecording {
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(Color.recordingRed)
+                                    .frame(width: 26, height: 26)
+                            } else {
+                                Circle()
+                                    .fill(Color.recordingRed)
+                                    .frame(width: 54, height: 54)
+                            }
+                        }
+                        Text(cameraManager.isRecording ? "Stop" : "Record")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(cameraManager.isRecording ? .recordingRed : .textPrimary)
+                    }
+                }
+                
+                // 3. Photo Shutter Button
+                Button(action: {
+                    cameraManager.takePhoto()
+                    HapticManager.shared.lightTap()
+                }) {
+                    VStack(spacing: 4) {
+                        Circle()
+                            .fill(Color.obsidianSurfaceVariant)
+                            .frame(width: 52, height: 52)
+                            .overlay(
+                                Circle()
+                                    .fill(Color.white)
+                                    .frame(width: 32, height: 32)
+                            )
+                            .overlay(
+                                Circle().stroke(Color.obsidianBorder, lineWidth: 1)
+                            )
+                        Text("Photo")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.textSecondary)
+                    }
+                }
+                
+                // 4. Torch Toggle (Visible when Rear Camera is active)
+                if settings.lens == .back {
+                    Button(action: {
+                        cameraManager.toggleTorch()
+                        HapticManager.shared.lightTap()
+                    }) {
+                        VStack(spacing: 4) {
+                            Circle()
+                                .fill(cameraManager.isTorchOn ? Color.primaryBlue.opacity(0.2) : Color.obsidianSurfaceVariant)
+                                .frame(width: 52, height: 52)
+                                .overlay(
+                                    Image(systemName: cameraManager.isTorchOn ? "flashlight.on.fill" : "flashlight.off.fill")
+                                        .font(.system(size: 18, weight: .semibold))
+                                        .foregroundColor(cameraManager.isTorchOn ? .primaryBlue : .textPrimary)
+                                )
+                                .overlay(
+                                    Circle().stroke(cameraManager.isTorchOn ? Color.primaryBlue : Color.obsidianBorder, lineWidth: 1)
+                                )
+                            Text("Torch")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(.textSecondary)
+                        }
+                    }
+                }
+            }
+            .padding(.vertical, 8)
+        }
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity)
+        .background(Color.obsidianSurface.opacity(0.6))
+        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18).stroke(Color.obsidianBorder, lineWidth: 1)
+        )
     }
     
     // MARK: - Mockup Card View
@@ -296,7 +438,7 @@ public struct StudioView: View {
                             )
                             .shadow(color: Color(hex: settings.borderColorHex).opacity(0.3), radius: 8)
                     } else {
-                        // Frame
+                        // Frame placeholder
                         mockupShape
                             .fill(Color.obsidianSurfaceVariant.opacity(settings.opacity))
                             .overlay(
@@ -338,6 +480,66 @@ public struct StudioView: View {
         }
     }
     
+    // MARK: - iOS Floating Guide Card
+    private var floatingGuideCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "info.circle.fill")
+                    .foregroundColor(.primaryBlue)
+                    .font(.system(size: 16))
+                Text("How Floating Camera Works on iOS")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(.textPrimary)
+            }
+            
+            VStack(alignment: .leading, spacing: 8) {
+                guideRow(
+                    icon: "arrow.up.left.and.arrow.down.right",
+                    title: "Pinch to Resize",
+                    detail: "Pinch two fingers anywhere on the floating camera to make it larger or smaller."
+                )
+                guideRow(
+                    icon: "hand.draw.fill",
+                    title: "Drag Anywhere",
+                    detail: "Move the floating camera to any corner of your screen over Gemini AI, Meta AI or any app."
+                )
+                guideRow(
+                    icon: "slider.horizontal.3",
+                    title: "Control From Any App (Control Center)",
+                    detail: "Swipe down iOS Control Center: tap Play/Pause to Record, Next to Flip lens."
+                )
+                guideRow(
+                    icon: "arrow.up.right.square.fill",
+                    title: "One-Tap Return to Studio",
+                    detail: "Tap the floating window's ↗ icon to jump back to full studio controls instantly."
+                )
+            }
+        }
+        .padding(14)
+        .background(Color.obsidianSurface)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16).stroke(Color.primaryBlue.opacity(0.3), lineWidth: 1)
+        )
+    }
+    
+    private func guideRow(icon: String, title: String, detail: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(.primaryBlue)
+                .frame(width: 18, height: 18)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.textPrimary)
+                Text(detail)
+                    .font(.system(size: 10))
+                    .foregroundColor(.textSecondary)
+            }
+        }
+    }
+    
     private var mockupShape: AnyShape {
         switch settings.shape {
         case .circle:
@@ -375,7 +577,7 @@ public struct StudioView: View {
         }
     }
     
-    private func studioChip(title: String, icon: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+    private func studioChip(title: String, icon: String, subLabel: String? = nil, isSelected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: {
             action()
             HapticManager.shared.lightTap()
@@ -383,8 +585,15 @@ public struct StudioView: View {
             HStack(spacing: 6) {
                 Image(systemName: icon)
                     .font(.system(size: 12))
-                Text(title)
-                    .font(.system(size: 12, weight: isSelected ? .bold : .regular))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title)
+                        .font(.system(size: 12, weight: isSelected ? .bold : .regular))
+                    if let sub = subLabel {
+                        Text(sub)
+                            .font(.system(size: 9))
+                            .foregroundColor(isSelected ? .white.opacity(0.8) : .textMuted)
+                    }
+                }
             }
             .foregroundColor(isSelected ? .white : .textSecondary)
             .padding(.horizontal, 10)
@@ -415,5 +624,11 @@ public struct StudioView: View {
         case .portrait9x16: return "iphone"
         case .landscape16x9: return "tv"
         }
+    }
+    
+    private func formatDuration(_ duration: TimeInterval) -> String {
+        let mins = Int(duration) / 60
+        let secs = Int(duration) % 60
+        return String(format: "%02d:%02d", mins, secs)
     }
 }

@@ -18,8 +18,14 @@ public final class PiPManager: NSObject, ObservableObject {
     private var possibleObservation: NSKeyValueObservation?
     private var pendingStartPiP: Bool = false
     
+    // Dynamic HUD Overlays
     private var statusBadge: UIView?
+    private var statusDot: UIView?
     private var statusLabel: UILabel?
+    private var lensBadge: UIView?
+    private var lensLabel: UILabel?
+    private var hintBadge: UIView?
+    private var hintLabel: UILabel?
     
     public override init() {
         super.init()
@@ -65,29 +71,113 @@ public final class PiPManager: NSObject, ObservableObject {
         self.previewLayer = preview
         self.cameraContainerView = cameraView
         
-        // 3. Add HUD Overlay inside PiP window
-        let hudView = UIView(frame: CGRect(x: 10, y: 10, width: 110, height: 24))
-        hudView.backgroundColor = UIColor(white: 0.08, alpha: 0.75)
-        hudView.layer.cornerRadius = 12
+        // 3. Dynamic Live HUD Badges inside PiP window
+        // 3a. Top Left Status Badge (Live status / REC timer)
+        let hudView = UIView()
+        hudView.backgroundColor = UIColor(white: 0.08, alpha: 0.8)
+        hudView.layer.cornerRadius = 11
         hudView.layer.masksToBounds = true
         hudView.layer.borderWidth = 1
-        hudView.layer.borderColor = UIColor(white: 0.3, alpha: 0.5).cgColor
+        hudView.layer.borderColor = UIColor(white: 0.35, alpha: 0.6).cgColor
+        hudView.translatesAutoresizingMaskIntoConstraints = false
         
-        let dot = UIView(frame: CGRect(x: 8, y: 8, width: 8, height: 8))
+        let dot = UIView()
         dot.backgroundColor = UIColor(red: 0.06, green: 0.73, blue: 0.51, alpha: 1.0)
         dot.layer.cornerRadius = 4
         dot.layer.masksToBounds = true
+        dot.translatesAutoresizingMaskIntoConstraints = false
         hudView.addSubview(dot)
         
-        let label = UILabel(frame: CGRect(x: 22, y: 4, width: 80, height: 16))
-        label.text = "FloatCam Live"
-        label.font = UIFont.systemFont(ofSize: 10, weight: .bold)
+        let label = UILabel()
+        label.text = "FLOATCAM LIVE"
+        label.font = UIFont.systemFont(ofSize: 9, weight: .bold)
         label.textColor = .white
+        label.translatesAutoresizingMaskIntoConstraints = false
         hudView.addSubview(label)
+        
+        NSLayoutConstraint.activate([
+            dot.leadingAnchor.constraint(equalTo: hudView.leadingAnchor, constant: 7),
+            dot.centerYAnchor.constraint(equalTo: hudView.centerYAnchor),
+            dot.widthAnchor.constraint(equalToConstant: 8),
+            dot.heightAnchor.constraint(equalToConstant: 8),
+            
+            label.leadingAnchor.constraint(equalTo: dot.trailingAnchor, constant: 5),
+            label.trailingAnchor.constraint(equalTo: hudView.trailingAnchor, constant: -7),
+            label.centerYAnchor.constraint(equalTo: hudView.centerYAnchor)
+        ])
         
         cameraView.addSubview(hudView)
         self.statusBadge = hudView
+        self.statusDot = dot
         self.statusLabel = label
+        
+        // 3b. Top Right Lens Badge
+        let lensView = UIView()
+        lensView.backgroundColor = UIColor(white: 0.08, alpha: 0.8)
+        lensView.layer.cornerRadius = 11
+        lensView.layer.masksToBounds = true
+        lensView.layer.borderWidth = 1
+        lensView.layer.borderColor = UIColor(white: 0.35, alpha: 0.6).cgColor
+        lensView.translatesAutoresizingMaskIntoConstraints = false
+        
+        let lensLbl = UILabel()
+        lensLbl.text = "\(settings.lens == .front ? "FRONT" : "REAR") • \(settings.resolution.rawValue)"
+        lensLbl.font = UIFont.systemFont(ofSize: 9, weight: .bold)
+        lensLbl.textColor = UIColor(white: 0.95, alpha: 1.0)
+        lensLbl.translatesAutoresizingMaskIntoConstraints = false
+        lensView.addSubview(lensLbl)
+        
+        NSLayoutConstraint.activate([
+            lensLbl.leadingAnchor.constraint(equalTo: lensView.leadingAnchor, constant: 7),
+            lensLbl.trailingAnchor.constraint(equalTo: lensView.trailingAnchor, constant: -7),
+            lensLbl.centerYAnchor.constraint(equalTo: lensView.centerYAnchor)
+        ])
+        
+        cameraView.addSubview(lensView)
+        self.lensBadge = lensView
+        self.lensLabel = lensLbl
+        
+        // 3c. Bottom Gestures Hint Pill
+        let hintView = UIView()
+        hintView.backgroundColor = UIColor(white: 0.05, alpha: 0.72)
+        hintView.layer.cornerRadius = 9
+        hintView.layer.masksToBounds = true
+        hintView.translatesAutoresizingMaskIntoConstraints = false
+        
+        let hintLbl = UILabel()
+        hintLbl.text = "Pinch to Resize • Tap ↗ for Studio"
+        hintLbl.font = UIFont.systemFont(ofSize: 8.5, weight: .semibold)
+        hintLbl.textColor = UIColor(white: 0.9, alpha: 0.95)
+        hintLbl.textAlignment = .center
+        hintLbl.translatesAutoresizingMaskIntoConstraints = false
+        hintView.addSubview(hintLbl)
+        
+        NSLayoutConstraint.activate([
+            hintLbl.leadingAnchor.constraint(equalTo: hintView.leadingAnchor, constant: 6),
+            hintLbl.trailingAnchor.constraint(equalTo: hintView.trailingAnchor, constant: -6),
+            hintLbl.centerYAnchor.constraint(equalTo: hintView.centerYAnchor)
+        ])
+        
+        cameraView.addSubview(hintView)
+        self.hintBadge = hintView
+        self.hintLabel = hintLbl
+        
+        // AutoLayout Anchors inside cameraView
+        NSLayoutConstraint.activate([
+            hudView.topAnchor.constraint(equalTo: cameraView.topAnchor, constant: 8),
+            hudView.leadingAnchor.constraint(equalTo: cameraView.leadingAnchor, constant: 8),
+            hudView.heightAnchor.constraint(equalToConstant: 22),
+            
+            lensView.topAnchor.constraint(equalTo: cameraView.topAnchor, constant: 8),
+            lensView.trailingAnchor.constraint(equalTo: cameraView.trailingAnchor, constant: -8),
+            lensView.heightAnchor.constraint(equalToConstant: 22),
+            
+            hintView.bottomAnchor.constraint(equalTo: cameraView.bottomAnchor, constant: -6),
+            hintView.centerXAnchor.constraint(equalTo: cameraView.centerXAnchor),
+            hintView.heightAnchor.constraint(equalToConstant: 18),
+            hintView.leadingAnchor.constraint(greaterThanOrEqualTo: cameraView.leadingAnchor, constant: 8),
+            hintView.trailingAnchor.constraint(lessThanOrEqualTo: cameraView.trailingAnchor, constant: -8)
+        ])
         
         // 4. Mount cameraView into callVC.view
         callVC.view.addSubview(cameraView)
@@ -135,6 +225,25 @@ public final class PiPManager: NSObject, ObservableObject {
         self.isPiPPossible = controller.isPictureInPicturePossible
     }
     
+    public func updateHUD(isRecording: Bool, duration: TimeInterval, lens: CameraLens, resolution: VideoResolution? = nil) {
+        if isRecording {
+            statusBadge?.backgroundColor = UIColor(red: 0.88, green: 0.12, blue: 0.18, alpha: 0.9)
+            statusBadge?.layer.borderColor = UIColor.white.withAlphaComponent(0.6).cgColor
+            statusDot?.backgroundColor = .white
+            let mins = Int(duration) / 60
+            let secs = Int(duration) % 60
+            statusLabel?.text = String(format: "REC %02d:%02d", mins, secs)
+        } else {
+            statusBadge?.backgroundColor = UIColor(white: 0.08, alpha: 0.8)
+            statusBadge?.layer.borderColor = UIColor(white: 0.35, alpha: 0.6).cgColor
+            statusDot?.backgroundColor = UIColor(red: 0.06, green: 0.73, blue: 0.51, alpha: 1.0)
+            statusLabel?.text = "FLOATCAM LIVE"
+        }
+        
+        let resStr = resolution?.rawValue ?? "1080p"
+        lensLabel?.text = "\(lens == .front ? "FRONT" : "REAR") • \(resStr)"
+    }
+    
     public func updateSettings(settings: CameraSettings) {
         guard let callVC = callVC else { return }
         let size = pipSize(for: settings.shape)
@@ -146,6 +255,13 @@ public final class PiPManager: NSObject, ObservableObject {
             connection.automaticallyAdjustsVideoMirroring = false
             connection.isVideoMirrored = mirrored
         }
+        
+        updateHUD(
+            isRecording: CameraManager.shared.isRecording,
+            duration: CameraManager.shared.recordingDuration,
+            lens: settings.lens,
+            resolution: settings.resolution
+        )
     }
     
     private func applyStyling(to view: UIView, settings: CameraSettings, size: CGSize) {
@@ -162,6 +278,8 @@ public final class PiPManager: NSObject, ObservableObject {
     
     public func startPiP() {
         configureAudioSessionAsync()
+        RemoteControlManager.shared.setupRemoteCommands()
+        RemoteControlManager.shared.updateNowPlaying()
         
         guard let controller = pipController else {
             pendingStartPiP = true
@@ -206,6 +324,8 @@ extension PiPManager: AVPictureInPictureControllerDelegate {
     public func pictureInPictureControllerDidStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
         isPiPActive = true
         pendingStartPiP = false
+        RemoteControlManager.shared.setupRemoteCommands()
+        RemoteControlManager.shared.updateNowPlaying()
         HapticManager.shared.successNotification()
     }
     

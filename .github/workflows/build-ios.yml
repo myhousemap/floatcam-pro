@@ -57,8 +57,8 @@ jobs:
           /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName 'FloatCam Pro'" "$PLIST" || \
           /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string 'FloatCam Pro'" "$PLIST"
 
-          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString '1.0.7'" "$PLIST" || \
-          /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string '1.0.7'" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString '1.0.8'" "$PLIST" || \
+          /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string '1.0.8'" "$PLIST"
 
           # Ensure UIBackgroundModes contains audio and voip
           /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" "$PLIST" || true
@@ -84,8 +84,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG_NAME="v1.0.7-build.${{ github.run_number }}"
+          TAG_NAME="v1.0.8-build.${{ github.run_number }}"
           gh release create "$TAG_NAME" build/FloatCamPro.ipa \
             --title "FloatCam Pro iOS ($TAG_NAME)" \
-            --notes "FloatCam Pro iOS v1.0.7 with persistent multitasking camera access and live Picture-in-Picture floating over Gemini AI, Meta AI & all apps." \
+            --notes "FloatCam Pro iOS v1.0.8 with Studio camera control deck (Record/Stop, Shutter, Flip, Torch), dynamic PiP HUD (live recording counter, lens badge, pinch-to-resize guide), and system-wide Control Center media controls for floating recording over Gemini AI & Meta AI." \
             --latest

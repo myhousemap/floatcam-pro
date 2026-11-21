@@ -82,6 +82,8 @@ public final class CameraManager: NSObject, ObservableObject {
             DispatchQueue.main.async {
                 self.isRunning = self.session.isRunning
                 self.currentLens = settings.lens
+                PiPManager.shared.updateHUD(isRecording: false, duration: 0, lens: settings.lens, resolution: settings.resolution)
+                RemoteControlManager.shared.updateNowPlaying()
             }
         }
     }
@@ -113,6 +115,8 @@ public final class CameraManager: NSObject, ObservableObject {
             DispatchQueue.main.async {
                 self.currentLens = targetLens
                 self.isTorchOn = false
+                PiPManager.shared.updateHUD(isRecording: self.isRecording, duration: self.recordingDuration, lens: targetLens)
+                RemoteControlManager.shared.updateNowPlaying()
             }
         }
     }
@@ -184,8 +188,14 @@ public final class CameraManager: NSObject, ObservableObject {
             DispatchQueue.main.async {
                 self.isRecording = true
                 self.recordingDuration = 0
+                PiPManager.shared.updateHUD(isRecording: true, duration: 0, lens: self.currentLens)
+                RemoteControlManager.shared.updateNowPlaying()
+                
                 self.recordingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-                    self?.recordingDuration += 1
+                    guard let self = self else { return }
+                    self.recordingDuration += 1
+                    PiPManager.shared.updateHUD(isRecording: true, duration: self.recordingDuration, lens: self.currentLens)
+                    RemoteControlManager.shared.updateNowPlaying()
                 }
             }
         }
@@ -202,6 +212,8 @@ public final class CameraManager: NSObject, ObservableObject {
                 self.isRecording = false
                 self.recordingTimer?.invalidate()
                 self.recordingTimer = nil
+                PiPManager.shared.updateHUD(isRecording: false, duration: 0, lens: self.currentLens)
+                RemoteControlManager.shared.updateNowPlaying()
             }
         }
     }
