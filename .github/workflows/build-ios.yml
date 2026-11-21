@@ -57,8 +57,8 @@ jobs:
           /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName 'FloatCam Pro'" "$PLIST" || \
           /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string 'FloatCam Pro'" "$PLIST"
 
-          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString '1.0.5'" "$PLIST" || \
-          /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string '1.0.5'" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString '1.0.6'" "$PLIST" || \
+          /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string '1.0.6'" "$PLIST"
 
           echo "=== Verified Info.plist in FloatCamPro.app ==="
           plutil -p "$PLIST"
@@ -79,8 +79,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG_NAME="v1.0.5-build.${{ github.run_number }}"
+          TAG_NAME="v1.0.6-build.${{ github.run_number }}"
           gh release create "$TAG_NAME" build/FloatCamPro.ipa \
             --title "FloatCam Pro iOS ($TAG_NAME)" \
-            --notes "FloatCam Pro iOS v1.0.5 with live system-wide Picture-in-Picture floating over Gemini AI, Meta AI, Safari & other apps." \
+            --notes "FloatCam Pro iOS v1.0.6 with lag-free live system-wide Picture-in-Picture floating over Gemini AI, Meta AI, Safari & all apps." \
             --latest

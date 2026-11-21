@@ -7,8 +7,6 @@ public struct StudioView: View {
     @ObservedObject var pipManager = PiPManager.shared
     @ObservedObject var permissionManager = PermissionManager.shared
     
-    @State private var isPulsing: Bool = false
-    
     public init(settings: Binding<CameraSettings>, isOverlayActive: Binding<Bool>) {
         self._settings = settings
         self._isOverlayActive = isOverlayActive
@@ -33,24 +31,26 @@ public struct StudioView: View {
                     // Status Pill
                     HStack(spacing: 6) {
                         Circle()
-                            .fill(isOverlayActive ? Color.successGreen : Color.textMuted)
+                            .fill(pipManager.isPiPActive ? Color.successGreen : (isOverlayActive ? Color.primaryBlue : (cameraManager.isRunning ? Color.successGreen : Color.textMuted)))
                             .frame(width: 8, height: 8)
-                            .scaleEffect(isOverlayActive && isPulsing ? 1.25 : 1.0)
-                            .animation(
-                                isOverlayActive ?
-                                Animation.easeInOut(duration: 0.8).repeatForever(autoreverses: true) : .default,
-                                value: isPulsing
-                            )
-                        Text(isOverlayActive ? (cameraManager.isRecording ? "RECORDING" : "OVERLAY ON") : "STANDBY")
+                        
+                        let statusText: String = {
+                            if pipManager.isPiPActive { return "FLOATING OVER APPS" }
+                            if isOverlayActive { return "IN-APP OVERLAY" }
+                            if cameraManager.isRunning { return "CAMERA READY" }
+                            return "STANDBY"
+                        }()
+                        
+                        Text(statusText)
                             .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(isOverlayActive ? Color.successGreen : Color.textMuted)
+                            .foregroundColor(pipManager.isPiPActive || cameraManager.isRunning ? Color.successGreen : (isOverlayActive ? Color.primaryBlue : Color.textMuted))
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .background(isOverlayActive ? Color.successGreen.opacity(0.15) : Color.obsidianSurfaceVariant)
+                    .background(pipManager.isPiPActive || cameraManager.isRunning ? Color.successGreen.opacity(0.15) : Color.obsidianSurfaceVariant)
                     .clipShape(Capsule())
                     .overlay(
-                        Capsule().stroke(isOverlayActive ? Color.successGreen.opacity(0.5) : Color.obsidianBorder, lineWidth: 1)
+                        Capsule().stroke(pipManager.isPiPActive || cameraManager.isRunning ? Color.successGreen.opacity(0.5) : Color.obsidianBorder, lineWidth: 1)
                     )
                 }
                 .padding(.horizontal)
@@ -255,7 +255,6 @@ public struct StudioView: View {
         }
         .background(Color.obsidianBackground)
         .onAppear {
-            isPulsing = true
             permissionManager.checkPermissions()
             if permissionManager.cameraGranted && !cameraManager.isRunning {
                 cameraManager.startSession(settings: settings)

@@ -14,19 +14,24 @@ public final class PiPManager: NSObject, ObservableObject {
     private var callVC: AVPictureInPictureVideoCallViewController?
     private var pipPreviewLayer: AVCaptureVideoPreviewLayer?
     private weak var activeSourceView: UIView?
+    private var possibleObservation: NSKeyValueObservation?
+    private var pendingStartPiP: Bool = false
     
     public override init() {
         super.init()
         isPiPSupported = AVPictureInPictureController.isPictureInPictureSupported()
+        configureAudioSessionAsync()
     }
     
-    public func configureAudioSessionForPiP() {
-        do {
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playAndRecord, mode: .videoChat, options: [.defaultToSpeaker, .allowBluetooth, .mixWithOthers])
-            try session.setActive(true)
-        } catch {
-            print("Failed to configure audio session for PiP: \(error)")
+    public func configureAudioSessionAsync() {
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                let session = AVAudioSession.sharedInstance()
+                try session.setCategory(.playAndRecord, mode: .videoChat, options: [.defaultToSpeaker, .allowBluetooth, .mixWithOthers])
+                try session.setActive(true)
+            } catch {
+                print("AudioSession configuration notice: \(error)")
+            }
         }
     }
     
@@ -34,7 +39,7 @@ public final class PiPManager: NSObject, ObservableObject {
         guard isPiPSupported else { return }
         
         self.activeSourceView = sourceView
-        configureAudioSessionForPiP()
+        configureAudioSessionAsync()
         
         // 1. Create Video Call View Controller
         let callViewController = AVPictureInPictureVideoCallViewController()
@@ -58,7 +63,7 @@ public final class PiPManager: NSObject, ObservableObject {
         self.pipPreviewLayer = previewLayer
         
         // Style Call VC
-        callViewController.view.layer.cornerRadius = (settings.shape == .circle) ? 28 : 20
+        callViewController.view.layer.cornerRadius = (settings.shape == .circle) ? (targetSize.width / 2) : 22
         callViewController.view.layer.masksToBounds = true
         callViewController.view.layer.borderColor = UIColor(Color(hex: settings.borderColorHex)).cgColor
         callViewController.view.layer.borderWidth = settings.borderWidth
@@ -75,6 +80,19 @@ public final class PiPManager: NSObject, ObservableObject {
         controller.delegate = self
         controller.canStartPictureInPictureAutomaticallyFromInline = true
         
+        // KVO Observer for isPictureInPicturePossible
+        self.possibleObservation?.invalidate()
+        self.possibleObservation = controller.observe(\.isPictureInPicturePossible, options: [.initial, .new]) { [weak self] ctrl, _ in
+            Task { @MainActor in
+                guard let self = self else { return }
+                self.isPiPPossible = ctrl.isPictureInPicturePossible
+                if ctrl.isPictureInPicturePossible && self.pendingStartPiP {
+                    self.pendingStartPiP = false
+                    ctrl.startPictureInPicture()
+                }
+            }
+        }
+        
         self.pipController = controller
         self.isPiPPossible = controller.isPictureInPicturePossible
     }
@@ -84,18 +102,24 @@ public final class PiPManager: NSObject, ObservableObject {
     }
     
     public func startPiP() {
-        configureAudioSessionForPiP()
+        configureAudioSessionAsync()
         
-        guard let controller = pipController else { return }
+        guard let controller = pipController else {
+            pendingStartPiP = true
+            return
+        }
         
         if controller.isPictureInPicturePossible {
             controller.startPictureInPicture()
             HapticManager.shared.lightTap()
         } else {
-            // Retry after short runloop cycle when view finishes attaching to window
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+            // Queue start as soon as Pegasus PiP daemon confirms possible
+            pendingStartPiP = true
+            // Also attempt fallback after short delay
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
                 guard let self = self, let ctrl = self.pipController else { return }
-                if ctrl.isPictureInPicturePossible {
+                if ctrl.isPictureInPicturePossible && !self.isPiPActive {
+                    self.pendingStartPiP = false
                     ctrl.startPictureInPicture()
                     HapticManager.shared.lightTap()
                 }
@@ -104,6 +128,7 @@ public final class PiPManager: NSObject, ObservableObject {
     }
     
     public func stopPiP() {
+        pendingStartPiP = false
         pipController?.stopPictureInPicture()
         HapticManager.shared.lightTap()
     }
@@ -123,14 +148,18 @@ public final class PiPManager: NSObject, ObservableObject {
 extension PiPManager: AVPictureInPictureControllerDelegate {
     public func pictureInPictureControllerDidStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
         isPiPActive = true
+        pendingStartPiP = false
+        HapticManager.shared.successNotification()
     }
     
     public func pictureInPictureControllerDidStopPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
         isPiPActive = false
+        pendingStartPiP = false
     }
     
     public func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, failedToStartPictureInPictureWithError error: Error) {
         print("PiP failed: \(error)")
         isPiPActive = false
+        pendingStartPiP = false
     }
 }

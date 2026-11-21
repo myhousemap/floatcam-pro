@@ -28,19 +28,24 @@ public struct PiPView: UIViewRepresentable {
     }
     
     public func updateUIView(_ uiView: PiPUITargetView, context: Context) {
-        uiView.updateLayout()
         if let connection = uiView.previewLayer?.connection, connection.isVideoMirroringSupported {
-            connection.automaticallyAdjustsVideoMirroring = false
-            connection.isVideoMirrored = (settings.lens == .front && settings.mirrorFrontCamera)
+            let mirrored = (settings.lens == .front && settings.mirrorFrontCamera)
+            if connection.isVideoMirrored != mirrored {
+                connection.automaticallyAdjustsVideoMirroring = false
+                connection.isVideoMirrored = mirrored
+            }
         }
     }
 }
 
 public class PiPUITargetView: UIView {
     public var previewLayer: AVCaptureVideoPreviewLayer?
+    private var lastBounds: CGRect = .zero
     
     public override func layoutSubviews() {
         super.layoutSubviews()
+        guard bounds != lastBounds, bounds.width > 0, bounds.height > 0 else { return }
+        lastBounds = bounds
         updateLayout()
     }
     
