@@ -11,27 +11,53 @@ public final class MediaManager: ObservableObject {
     private let albumName = "FloatCam Pro"
     
     private init() {
-        loadMedia()
+        // Do not fetch at init to prevent crashes before user grants permissions
     }
     
     public func loadMedia() {
+        let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+        guard status == .authorized || status == .limited else {
+            DispatchQueue.main.async {
+                self.mediaItems = []
+                self.isLoading = false
+            }
+            return
+        }
+        
         isLoading = true
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
             
-            var items: [MediaItem] = []
+            // Only query our dedicated "FloatCam Pro" album to prevent memory crashes
             let fetchOptions = PHFetchOptions()
-            fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+            fetchOptions.predicate = NSPredicate(format: "title = %@", self.albumName)
+            let collections = PHAssetCollection.fetchAssetCollections(with: .album, subtype: .any, options: fetchOptions)
             
-            let fetchResult = PHAsset.fetchAssets(with: fetchOptions)
+            guard let album = collections.firstObject else {
+                DispatchQueue.main.async {
+                    self.mediaItems = []
+                    self.isLoading = false
+                }
+                return
+            }
+            
+            let assetOptions = PHFetchOptions()
+            assetOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+            let assets = PHAsset.fetchAssets(in: album, options: assetOptions)
+            
+            var items: [MediaItem] = []
             let imageManager = PHImageManager.default()
             let requestOptions = PHImageRequestOptions()
             requestOptions.isSynchronous = true
             requestOptions.deliveryMode = .fastFormat
+            requestOptions.isNetworkAccessAllowed = false
             
-            fetchResult.enumerateObjects { asset, _, _ in
+            assets.enumerateObjects { asset, _, _ in
                 let isVideo = (asset.mediaType == .video)
-                let name = asset.value(forKey: "filename") as? String ?? "Capture_\(asset.localIdentifier).\(isVideo ? "mp4" : "jpg")"
+                
+                // Safe filename retrieval using PHAssetResource (prevents NSUnknownKeyException crash)
+                let resources = PHAssetResource.assetResources(for: asset)
+                let name = resources.first?.originalFilename ?? "Capture_\(asset.localIdentifier.prefix(8)).\(isVideo ? "mp4" : "jpg")"
                 
                 var thumbnail: UIImage?
                 let targetSize = CGSize(width: 250, height: 250)

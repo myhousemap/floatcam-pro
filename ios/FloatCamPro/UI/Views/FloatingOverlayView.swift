@@ -6,6 +6,7 @@ public struct FloatingOverlayView: View {
     let onClose: () -> Void
     
     @State private var offset: CGSize = CGSize(width: 40, height: 100)
+    @State private var dragOffset: CGSize = .zero
     @State private var currentWidth: CGFloat = 220
     @State private var isLocked: Bool = false
     @State private var isMinimized: Bool = false
@@ -52,20 +53,19 @@ public struct FloatingOverlayView: View {
                                 .offset(x: 16, y: -16) : nil
                         )
                         .shadow(color: Color.black.opacity(0.4), radius: 6)
-                        .offset(offset)
+                        .offset(x: offset.width + dragOffset.width, y: offset.height + dragOffset.height)
                         .gesture(
                             DragGesture()
                                 .onChanged { value in
-                                    offset = CGSize(
-                                        width: offset.width + value.translation.width,
-                                        height: offset.height + value.translation.height
-                                    )
+                                    dragOffset = value.translation
                                 }
-                                .onEnded { _ in
-                                    // Snap bubble to nearest screen edge
-                                    let snapX: CGFloat = (offset.width < geometry.size.width / 2) ? 16 : (geometry.size.width - 72)
+                                .onEnded { value in
+                                    let rawX = offset.width + value.translation.width
+                                    let snapX: CGFloat = (rawX < geometry.size.width / 2) ? 16 : (geometry.size.width - 72)
+                                    let rawY = max(60, min(geometry.size.height - 120, offset.height + value.translation.height))
                                     withAnimation(.spring()) {
-                                        offset.width = snapX
+                                        offset = CGSize(width: snapX, height: rawY)
+                                        dragOffset = .zero
                                     }
                                     HapticManager.shared.snapHaptic()
                                 }
@@ -137,16 +137,19 @@ public struct FloatingOverlayView: View {
                         }
                         .frame(width: currentWidth, height: currentHeight)
                     }
-                    .offset(offset)
+                    .offset(x: offset.width + dragOffset.width, y: offset.height + dragOffset.height)
                     .gesture(
                         isLocked ? nil :
                         DragGesture()
                             .onChanged { value in
-                                offset = CGSize(
-                                    width: max(0, min(geometry.size.width - currentWidth, offset.width + value.translation.width)),
-                                    height: max(50, min(geometry.size.height - currentHeight - 60, offset.height + value.translation.height))
-                                )
+                                dragOffset = value.translation
                                 resetAutoHideHud()
+                            }
+                            .onEnded { value in
+                                offset.width = max(0, min(geometry.size.width - currentWidth, offset.width + value.translation.width))
+                                offset.height = max(50, min(geometry.size.height - currentHeight - 60, offset.height + value.translation.height))
+                                dragOffset = .zero
+                                HapticManager.shared.snapHaptic()
                             }
                     )
                 }
@@ -331,20 +334,5 @@ public struct FloatingOverlayView: View {
         let mins = Int(duration) / 60
         let secs = Int(duration) % 60
         return String(format: "%02d:%02d", mins, secs)
-    }
-}
-
-// Helper Shape Wrapper for Dynamic Shape Clipping
-public struct AnyShape: Shape {
-    private let pathBlock: (CGRect) -> Path
-
-    public init<S: Shape>(_ shape: S) {
-        self.pathBlock = { rect in
-            shape.path(in: rect)
-        }
-    }
-
-    public func path(in rect: CGRect) -> Path {
-        return pathBlock(rect)
     }
 }

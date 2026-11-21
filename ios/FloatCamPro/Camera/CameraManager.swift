@@ -28,6 +28,9 @@ public final class CameraManager: NSObject, ObservableObject {
     }
     
     public func startSession(settings: CameraSettings) {
+        // Prevent starting camera session if authorization is not yet granted
+        guard AVCaptureDevice.authorizationStatus(for: .video) == .authorized else { return }
+        
         sessionQueue.async { [weak self] in
             guard let self = self else { return }
             guard !self.session.isRunning else { return }
@@ -55,7 +58,7 @@ public final class CameraManager: NSObject, ObservableObject {
             // Video Input
             self.setupVideoInput(for: settings.lens)
             
-            // Audio Input
+            // Audio Input (Safe check: only add if audio is authorized)
             if settings.audioEnabled {
                 self.setupAudioInput()
             }
@@ -143,6 +146,7 @@ public final class CameraManager: NSObject, ObservableObject {
     }
     
     public func takePhoto() {
+        guard AVCaptureDevice.authorizationStatus(for: .video) == .authorized else { return }
         sessionQueue.async { [weak self] in
             guard let self = self else { return }
             let settings = AVCapturePhotoSettings()
@@ -160,7 +164,7 @@ public final class CameraManager: NSObject, ObservableObject {
     }
     
     private func startRecording() {
-        guard !isRecording else { return }
+        guard !isRecording, AVCaptureDevice.authorizationStatus(for: .video) == .authorized else { return }
         sessionQueue.async { [weak self] in
             guard let self = self else { return }
             
@@ -209,6 +213,8 @@ public final class CameraManager: NSObject, ObservableObject {
     }
     
     private func setupAudioInput() {
+        // Only attach audio input if audio permission is explicitly granted
+        guard AVCaptureDevice.authorizationStatus(for: .audio) == .authorized else { return }
         guard let device = AVCaptureDevice.default(for: .audio),
               let input = try? AVCaptureDeviceInput(device: device) else { return }
         

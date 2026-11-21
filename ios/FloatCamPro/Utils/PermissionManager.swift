@@ -24,17 +24,10 @@ public final class PermissionManager: ObservableObject {
             self.cameraGranted = (cameraStatus == .authorized)
         }
         
-        // Microphone
-        if #available(iOS 17.0, *) {
-            let micStatus = AVAudioApplication.shared.recordPermission
-            DispatchQueue.main.async {
-                self.microphoneGranted = (micStatus == .granted)
-            }
-        } else {
-            let micStatus = AVAudioSession.sharedInstance().recordPermission
-            DispatchQueue.main.async {
-                self.microphoneGranted = (micStatus == .granted)
-            }
+        // Microphone (using AVCaptureDevice to prevent AVAudioSession crashes)
+        let micStatus = AVCaptureDevice.authorizationStatus(for: .audio)
+        DispatchQueue.main.async {
+            self.microphoneGranted = (micStatus == .authorized)
         }
         
         // Photo Library
@@ -54,19 +47,10 @@ public final class PermissionManager: ObservableObject {
     }
     
     public func requestMicrophonePermission(completion: @escaping (Bool) -> Void) {
-        if #available(iOS 17.0, *) {
-            AVAudioApplication.requestRecordPermission { granted in
-                DispatchQueue.main.async {
-                    self.microphoneGranted = granted
-                    completion(granted)
-                }
-            }
-        } else {
-            AVAudioSession.sharedInstance().requestRecordPermission { granted in
-                DispatchQueue.main.async {
-                    self.microphoneGranted = granted
-                    completion(granted)
-                }
+        AVCaptureDevice.requestAccess(for: .audio) { granted in
+            DispatchQueue.main.async {
+                self.microphoneGranted = granted
+                completion(granted)
             }
         }
     }
@@ -76,6 +60,9 @@ public final class PermissionManager: ObservableObject {
             DispatchQueue.main.async {
                 let granted = (status == .authorized || status == .limited)
                 self.photoLibraryGranted = granted
+                if granted {
+                    MediaManager.shared.loadMedia()
+                }
                 completion(granted)
             }
         }

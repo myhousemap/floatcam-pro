@@ -20,6 +20,11 @@ targets:
         CODE_SIGN_IDENTITY: ""
         CODE_SIGNING_ALLOWED: "NO"
         GENERATE_INFOPLIST_FILE: "NO"
+        INFOPLIST_FILE: ios/FloatCamPro/App/Info.plist
+        INFOPLIST_KEY_NSCameraUsageDescription: "FloatCam Pro requires camera access to preview and capture photos and video in floating overlay and Picture-in-Picture mode."
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "FloatCam Pro requires microphone access to record clear audio during floating camera recordings."
+        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "FloatCam Pro requires access to your photo library to save and display captured photos and videos."
+        INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: "FloatCam Pro requires permission to save photos and video captures to your camera roll."
         SWIFT_VERSION: "5.9"
-        CURRENT_PROJECT_VERSION: 1
-        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: 2
+        MARKETING_VERSION: "1.0.1"
