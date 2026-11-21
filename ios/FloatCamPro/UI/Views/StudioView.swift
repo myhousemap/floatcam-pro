@@ -2,14 +2,12 @@ import SwiftUI
 
 public struct StudioView: View {
     @Binding var settings: CameraSettings
-    @Binding var isOverlayActive: Bool
     @ObservedObject var cameraManager = CameraManager.shared
     @ObservedObject var pipManager = PiPManager.shared
     @ObservedObject var permissionManager = PermissionManager.shared
     
-    public init(settings: Binding<CameraSettings>, isOverlayActive: Binding<Bool>) {
+    public init(settings: Binding<CameraSettings>) {
         self._settings = settings
-        self._isOverlayActive = isOverlayActive
     }
     
     public var body: some View {
@@ -31,26 +29,25 @@ public struct StudioView: View {
                     // Status Pill
                     HStack(spacing: 6) {
                         Circle()
-                            .fill(pipManager.isPiPActive ? Color.successGreen : (isOverlayActive ? Color.primaryBlue : (cameraManager.isRunning ? Color.successGreen : Color.textMuted)))
+                            .fill(pipManager.isPiPActive ? Color.successGreen : (cameraManager.isRunning ? Color.primaryBlue : Color.textMuted))
                             .frame(width: 8, height: 8)
                         
                         let statusText: String = {
                             if pipManager.isPiPActive { return "FLOATING OVER APPS" }
-                            if isOverlayActive { return "IN-APP OVERLAY" }
                             if cameraManager.isRunning { return "CAMERA READY" }
                             return "STANDBY"
                         }()
                         
                         Text(statusText)
                             .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(pipManager.isPiPActive || cameraManager.isRunning ? Color.successGreen : (isOverlayActive ? Color.primaryBlue : Color.textMuted))
+                            .foregroundColor(pipManager.isPiPActive ? Color.successGreen : (cameraManager.isRunning ? Color.primaryBlue : Color.textMuted))
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .background(pipManager.isPiPActive || cameraManager.isRunning ? Color.successGreen.opacity(0.15) : Color.obsidianSurfaceVariant)
+                    .background(pipManager.isPiPActive ? Color.successGreen.opacity(0.15) : Color.obsidianSurfaceVariant)
                     .clipShape(Capsule())
                     .overlay(
-                        Capsule().stroke(pipManager.isPiPActive || cameraManager.isRunning ? Color.successGreen.opacity(0.5) : Color.obsidianBorder, lineWidth: 1)
+                        Capsule().stroke(pipManager.isPiPActive ? Color.successGreen.opacity(0.5) : Color.obsidianBorder, lineWidth: 1)
                     )
                 }
                 .padding(.horizontal)
@@ -100,76 +97,44 @@ public struct StudioView: View {
                 studioControlDeck
                     .padding(.horizontal)
                 
-                // Primary Action Buttons
-                VStack(spacing: 12) {
-                    // 1. Picture-in-Picture Float Button (iOS System-Wide) - PRIMARY FOR OVER OTHER APPS
-                    Button(action: {
-                        if !cameraManager.isRunning {
-                            cameraManager.startSession(settings: settings)
+                // Primary Action Button (System-Wide Floating Camera Over Gemini & Other Apps)
+                Button(action: {
+                    if !cameraManager.isRunning {
+                        cameraManager.startSession(settings: settings)
+                    }
+                    if pipManager.isPiPActive {
+                        pipManager.stopPiP()
+                    } else {
+                        pipManager.startPiP()
+                    }
+                }) {
+                    HStack(spacing: 14) {
+                        Image(systemName: pipManager.isPiPActive ? "stop.circle.fill" : "pip.enter")
+                            .font(.system(size: 24, weight: .bold))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(pipManager.isPiPActive ? "FLOATING CAMERA ACTIVE" : "START FLOATING CAMERA")
+                                .font(.system(size: 16, weight: .bold))
+                            Text(pipManager.isPiPActive ? "Camera is floating over other apps • Tap to Stop" : "Camera stays small & floats on screen over all apps")
+                                .font(.system(size: 11))
+                                .foregroundColor(.white.opacity(0.85))
                         }
+                        Spacer()
                         if pipManager.isPiPActive {
-                            pipManager.stopPiP()
-                        } else {
-                            pipManager.startPiP()
+                            Text("STOP")
+                                .font(.system(size: 12, weight: .bold))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(Color.white.opacity(0.2))
+                                .clipShape(Capsule())
                         }
-                    }) {
-                        HStack(spacing: 12) {
-                            Image(systemName: pipManager.isPiPActive ? "pip.exit" : "pip.enter")
-                                .font(.system(size: 20, weight: .bold))
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(pipManager.isPiPActive ? "Floating Active (Tap to Stop)" : "Float Over Gemini & Other Apps (PiP)")
-                                    .font(.system(size: 15, weight: .bold))
-                                Text(pipManager.isPiPActive ? "Camera is currently pinned over other apps" : "Pinch to resize • Drag anywhere • Control via Control Center")
-                                    .font(.system(size: 11))
-                                    .foregroundColor(.white.opacity(0.8))
-                            }
-                            Spacer()
-                        }
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 16)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 58)
-                        .background(pipManager.isPiPActive ? Color.recordingRed : Color.primaryBlue)
-                        .clipShape(RoundedRectangle(cornerRadius: 18))
-                        .shadow(color: (pipManager.isPiPActive ? Color.recordingRed : Color.primaryBlue).opacity(0.4), radius: 8, y: 4)
                     }
-                    
-                    // 2. In-App Floating Overlay Window
-                    Button(action: {
-                        if !isOverlayActive && !permissionManager.cameraGranted {
-                            permissionManager.requestCameraPermission()
-                            return
-                        }
-                        withAnimation(.spring()) {
-                            isOverlayActive.toggle()
-                        }
-                        if isOverlayActive && !cameraManager.isRunning {
-                            cameraManager.startSession(settings: settings)
-                        }
-                        HapticManager.shared.mediumTap()
-                    }) {
-                        HStack(spacing: 10) {
-                            Image(systemName: isOverlayActive ? "xmark.circle.fill" : "square.on.square")
-                                .font(.system(size: 16, weight: .semibold))
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(isOverlayActive ? "Close In-App Overlay" : "Open In-App Overlay Window")
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundColor(.textPrimary)
-                                Text("Window with on-screen buttons, resize handle & bubble minimize")
-                                    .font(.system(size: 10))
-                                    .foregroundColor(.textSecondary)
-                            }
-                            Spacer()
-                        }
-                        .padding(.horizontal, 14)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 50)
-                        .background(Color.obsidianSurface)
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14).stroke(Color.obsidianBorder, lineWidth: 1)
-                        )
-                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 18)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 62)
+                    .background(pipManager.isPiPActive ? Color.recordingRed : Color.primaryBlue)
+                    .clipShape(RoundedRectangle(cornerRadius: 18))
+                    .shadow(color: (pipManager.isPiPActive ? Color.recordingRed : Color.primaryBlue).opacity(0.4), radius: 10, y: 5)
                 }
                 .padding(.horizontal)
                 
@@ -422,58 +387,40 @@ public struct StudioView: View {
             
             // Mockup Shape Display with Live Camera Feed
             VStack {
-                ZStack {
-                    if cameraManager.isRunning {
-                        PiPView(session: cameraManager.session, settings: settings)
-                            .clipShape(mockupShape)
+                if permissionManager.cameraGranted {
+                    PiPView(session: cameraManager.session, settings: settings)
+                        .frame(
+                            width: mockupWidth,
+                            height: mockupHeight
+                        )
+                        .shadow(color: Color(hex: settings.borderColorHex).opacity(0.3), radius: 8)
+                } else {
+                    // Frame placeholder when camera permission not yet granted
+                    mockupShape
+                        .fill(Color.obsidianSurfaceVariant.opacity(settings.opacity))
+                        .overlay(
+                            mockupShape.stroke(
+                                Color(hex: settings.borderColorHex),
+                                lineWidth: settings.borderWidth
+                            )
+                        )
+                        .frame(
+                            width: mockupWidth,
+                            height: mockupHeight
+                        )
+                    
+                    VStack(spacing: 6) {
+                        Circle()
+                            .fill(Color.obsidianBackground)
+                            .frame(width: 48, height: 48)
                             .overlay(
-                                mockupShape.stroke(
-                                    Color(hex: settings.borderColorHex),
-                                    lineWidth: settings.borderWidth
-                                )
+                                Image(systemName: "camera.badge.ellipsis")
+                                    .font(.system(size: 22))
+                                    .foregroundColor(.recordingRed)
                             )
-                            .frame(
-                                width: mockupWidth,
-                                height: mockupHeight
-                            )
-                            .shadow(color: Color(hex: settings.borderColorHex).opacity(0.3), radius: 8)
-                    } else {
-                        // Frame placeholder
-                        mockupShape
-                            .fill(Color.obsidianSurfaceVariant.opacity(settings.opacity))
-                            .overlay(
-                                mockupShape.stroke(
-                                    Color(hex: settings.borderColorHex),
-                                    lineWidth: settings.borderWidth
-                                )
-                            )
-                            .frame(
-                                width: mockupWidth,
-                                height: mockupHeight
-                            )
-                        
-                        // Inner lens icon
-                        VStack(spacing: 6) {
-                            Circle()
-                                .fill(Color.obsidianBackground)
-                                .frame(width: 48, height: 48)
-                                .overlay(
-                                    Circle().stroke(Color(hex: settings.borderColorHex).opacity(0.5), lineWidth: 1)
-                                )
-                                .overlay(
-                                    Image(systemName: (settings.lens == .front) ? "person.crop.circle" : "camera.fill")
-                                        .font(.system(size: 22))
-                                        .foregroundColor(Color(hex: settings.borderColorHex))
-                                )
-                            
-                            Text(settings.shape.rawValue)
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(.textPrimary)
-                            
-                            Text("\(settings.resolution.rawValue) • \(settings.fps.label)")
-                                .font(.system(size: 9))
-                                .foregroundColor(.textSecondary)
-                        }
+                        Text("Camera Permission Required")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.textPrimary)
                     }
                 }
             }

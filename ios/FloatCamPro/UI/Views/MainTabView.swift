@@ -19,7 +19,6 @@ public enum AppTab: String, CaseIterable, Identifiable {
 public struct MainTabView: View {
     @State private var selectedTab: AppTab = .studio
     @State private var settings = CameraSettings()
-    @State private var isOverlayActive: Bool = false
     
     public init() {}
     
@@ -32,7 +31,7 @@ public struct MainTabView: View {
                 Group {
                     switch selectedTab {
                     case .studio:
-                        StudioView(settings: $settings, isOverlayActive: $isOverlayActive)
+                        StudioView(settings: $settings)
                     case .gallery:
                         GalleryView()
                     case .settings:
@@ -71,17 +70,6 @@ public struct MainTabView: View {
                 )
                 .padding(.horizontal, 16)
                 .padding(.bottom, 6)
-            }
-            
-            // In-App Floating Camera Overlay Window
-            if isOverlayActive {
-                FloatingOverlayView(settings: $settings) {
-                    withAnimation(.spring()) {
-                        isOverlayActive = false
-                    }
-                    CameraManager.shared.stopSession()
-                }
-                .transition(.scale.combined(with: .opacity))
             }
         }
     }

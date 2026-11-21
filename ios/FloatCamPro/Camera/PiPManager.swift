@@ -217,12 +217,20 @@ public final class PiPManager: NSObject, ObservableObject {
                 if ctrl.isPictureInPicturePossible && self.pendingStartPiP {
                     self.pendingStartPiP = false
                     ctrl.startPictureInPicture()
+                    HapticManager.shared.lightTap()
                 }
             }
         }
         
         self.pipController = controller
         self.isPiPPossible = controller.isPictureInPicturePossible
+        
+        // If start was requested before controller was ready, trigger immediately
+        if self.pendingStartPiP && controller.isPictureInPicturePossible {
+            self.pendingStartPiP = false
+            controller.startPictureInPicture()
+            HapticManager.shared.lightTap()
+        }
     }
     
     public func updateHUD(isRecording: Bool, duration: TimeInterval, lens: CameraLens, resolution: VideoResolution? = nil) {
@@ -281,23 +289,31 @@ public final class PiPManager: NSObject, ObservableObject {
         RemoteControlManager.shared.setupRemoteCommands()
         RemoteControlManager.shared.updateNowPlaying()
         
-        guard let controller = pipController else {
-            pendingStartPiP = true
+        pendingStartPiP = true
+        
+        if let controller = pipController, controller.isPictureInPicturePossible {
+            pendingStartPiP = false
+            controller.startPictureInPicture()
+            HapticManager.shared.lightTap()
             return
         }
         
-        if controller.isPictureInPicturePossible {
-            controller.startPictureInPicture()
-            HapticManager.shared.lightTap()
-        } else {
-            pendingStartPiP = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
-                guard let self = self, let ctrl = self.pipController else { return }
-                if ctrl.isPictureInPicturePossible && !self.isPiPActive {
-                    self.pendingStartPiP = false
-                    ctrl.startPictureInPicture()
-                    HapticManager.shared.lightTap()
-                }
+        // Continuous retry: checks every 100ms up to 30 times (3 seconds) until PiP is ready
+        var attempts = 0
+        Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] timer in
+            guard let self = self else {
+                timer.invalidate()
+                return
+            }
+            attempts += 1
+            if let controller = self.pipController, controller.isPictureInPicturePossible {
+                timer.invalidate()
+                self.pendingStartPiP = false
+                controller.startPictureInPicture()
+                HapticManager.shared.lightTap()
+            } else if attempts >= 30 {
+                timer.invalidate()
+                self.pendingStartPiP = false
             }
         }
     }
