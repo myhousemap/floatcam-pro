@@ -2,6 +2,7 @@ import Foundation
 import Photos
 import UIKit
 
+@MainActor
 public final class MediaManager: ObservableObject {
     public static let shared = MediaManager()
     

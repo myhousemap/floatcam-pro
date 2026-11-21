@@ -5,6 +5,7 @@ public struct StudioView: View {
     @Binding var isOverlayActive: Bool
     @ObservedObject var cameraManager = CameraManager.shared
     @ObservedObject var pipManager = PiPManager.shared
+    @ObservedObject var permissionManager = PermissionManager.shared
     
     @State private var isPulsing: Bool = false
     
@@ -55,6 +56,42 @@ public struct StudioView: View {
                 .padding(.horizontal)
                 .padding(.top, 12)
                 
+                // Camera Permission Warning Banner if missing
+                if !permissionManager.cameraGranted {
+                    HStack(spacing: 12) {
+                        Image(systemName: "camera.badge.ellipsis")
+                            .font(.system(size: 20))
+                            .foregroundColor(.recordingRed)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Camera Permission Required")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundColor(.textPrimary)
+                            Text("Grant camera access to preview and record.")
+                                .font(.system(size: 11))
+                                .foregroundColor(.textSecondary)
+                        }
+                        Spacer()
+                        Button(action: {
+                            permissionManager.requestCameraPermission()
+                        }) {
+                            Text("Enable")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 6)
+                                .background(Color.primaryBlue)
+                                .clipShape(Capsule())
+                        }
+                    }
+                    .padding(12)
+                    .background(Color.obsidianSurface)
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14).stroke(Color.recordingRed.opacity(0.4), lineWidth: 1)
+                    )
+                    .padding(.horizontal)
+                }
+                
                 // Live Interactive Visual Mockup Card
                 studioMockupCard
                     .padding(.horizontal)
@@ -62,6 +99,10 @@ public struct StudioView: View {
                 // Primary Action Button (Launch / Stop Floating Camera)
                 VStack(spacing: 12) {
                     Button(action: {
+                        if !isOverlayActive && !permissionManager.cameraGranted {
+                            permissionManager.requestCameraPermission()
+                            return
+                        }
                         withAnimation(.spring()) {
                             isOverlayActive.toggle()
                         }

@@ -243,7 +243,9 @@ extension CameraManager: AVCapturePhotoCaptureDelegate {
 extension CameraManager: AVCaptureFileOutputRecordingDelegate {
     public func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
         if error == nil {
-            MediaManager.shared.saveVideo(at: outputFileURL) { _ in }
+            DispatchQueue.main.async {
+                MediaManager.shared.saveVideo(at: outputFileURL) { _ in }
+            }
         } else {
             print("Video recording failed: \(String(describing: error))")
         }

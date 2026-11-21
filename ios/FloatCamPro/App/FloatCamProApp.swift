@@ -10,11 +10,13 @@ struct FloatCamProApp: App {
             ZStack {
                 Color.obsidianBackground.ignoresSafeArea()
                 
-                if hasCompletedOnboarding && permissionManager.allRequiredGranted {
+                if hasCompletedOnboarding {
                     MainTabView()
                 } else {
                     OnboardingView {
-                        hasCompletedOnboarding = true
+                        withAnimation(.easeInOut(duration: 0.35)) {
+                            hasCompletedOnboarding = true
+                        }
                     }
                 }
             }

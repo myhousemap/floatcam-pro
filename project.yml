@@ -26,5 +26,5 @@ targets:
         INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "FloatCam Pro requires access to your photo library to save and display captured photos and videos."
         INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: "FloatCam Pro requires permission to save photos and video captures to your camera roll."
         SWIFT_VERSION: "5.9"
-        CURRENT_PROJECT_VERSION: 2
-        MARKETING_VERSION: "1.0.1"
+        CURRENT_PROJECT_VERSION: 3
+        MARKETING_VERSION: "1.0.2"
