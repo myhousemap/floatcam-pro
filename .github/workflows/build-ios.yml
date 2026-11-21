@@ -35,10 +35,34 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             archive
 
-      - name: Package Unsigned IPA
+      - name: Package Unsigned IPA with Injected Privacy Descriptions
         run: |
           mkdir -p build/Payload
           cp -R build/FloatCamPro.xcarchive/Products/Applications/FloatCamPro.app build/Payload/
+          PLIST="build/Payload/FloatCamPro.app/Info.plist"
+
+          echo "Configuring privacy usage descriptions in $PLIST..."
+          /usr/libexec/PlistBuddy -c "Set :NSCameraUsageDescription 'FloatCam Pro requires camera access to preview and capture photos and video in floating overlay and Picture-in-Picture mode.'" "$PLIST" || \
+          /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'FloatCam Pro requires camera access to preview and capture photos and video in floating overlay and Picture-in-Picture mode.'" "$PLIST"
+
+          /usr/libexec/PlistBuddy -c "Set :NSMicrophoneUsageDescription 'FloatCam Pro requires microphone access to record clear audio during floating camera recordings.'" "$PLIST" || \
+          /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string 'FloatCam Pro requires microphone access to record clear audio during floating camera recordings.'" "$PLIST"
+
+          /usr/libexec/PlistBuddy -c "Set :NSPhotoLibraryUsageDescription 'FloatCam Pro requires access to your photo library to save and display captured photos and videos.'" "$PLIST" || \
+          /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string 'FloatCam Pro requires access to your photo library to save and display captured photos and videos.'" "$PLIST"
+
+          /usr/libexec/PlistBuddy -c "Set :NSPhotoLibraryAddUsageDescription 'FloatCam Pro requires permission to save photos and video captures to your camera roll.'" "$PLIST" || \
+          /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryAddUsageDescription string 'FloatCam Pro requires permission to save photos and video captures to your camera roll.'" "$PLIST"
+
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName 'FloatCam Pro'" "$PLIST" || \
+          /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string 'FloatCam Pro'" "$PLIST"
+
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString '1.0.4'" "$PLIST" || \
+          /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string '1.0.4'" "$PLIST"
+
+          echo "=== Verified Info.plist in FloatCamPro.app ==="
+          plutil -p "$PLIST"
+
           cd build
           zip -qr FloatCamPro.ipa Payload
           ls -lh FloatCamPro.ipa
@@ -55,8 +79,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG_NAME="v1.0.3-build.${{ github.run_number }}"
+          TAG_NAME="v1.0.4-build.${{ github.run_number }}"
           gh release create "$TAG_NAME" build/FloatCamPro.ipa \
             --title "FloatCam Pro iOS ($TAG_NAME)" \
-            --notes "Direct 1-click download of FloatCamPro.ipa for Sideloadly / AltStore. Includes Camera & PhotoKit crash fixes and ultra-sleek Obsidian Studio UI." \
+            --notes "Direct 1-click download of FloatCamPro.ipa for Sideloadly / AltStore. Fixes NSCameraUsageDescription, NSPhotoLibraryUsageDescription, and NSMicrophoneUsageDescription injection." \
             --latest
