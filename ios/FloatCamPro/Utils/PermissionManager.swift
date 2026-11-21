@@ -10,6 +10,10 @@ public final class PermissionManager: ObservableObject {
     @Published public var microphoneGranted: Bool = false
     @Published public var photoLibraryGranted: Bool = false
     
+    @Published public var cameraDenied: Bool = false
+    @Published public var microphoneDenied: Bool = false
+    @Published public var photoLibraryDenied: Bool = false
+    
     public var allRequiredGranted: Bool {
         cameraGranted && photoLibraryGranted
     }
@@ -22,14 +26,25 @@ public final class PermissionManager: ObservableObject {
         // Camera
         let cameraStatus = AVCaptureDevice.authorizationStatus(for: .video)
         self.cameraGranted = (cameraStatus == .authorized)
+        self.cameraDenied = (cameraStatus == .denied || cameraStatus == .restricted)
         
         // Microphone
         let micStatus = AVCaptureDevice.authorizationStatus(for: .audio)
         self.microphoneGranted = (micStatus == .authorized)
+        self.microphoneDenied = (micStatus == .denied || micStatus == .restricted)
         
         // Photo Library
         let photoStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
         self.photoLibraryGranted = (photoStatus == .authorized || photoStatus == .limited)
+        self.photoLibraryDenied = (photoStatus == .denied || photoStatus == .restricted)
+    }
+    
+    public func requestAllPermissions() {
+        requestCameraPermission { [weak self] _ in
+            self?.requestPhotoLibraryPermission { [weak self] _ in
+                self?.requestMicrophonePermission()
+            }
+        }
     }
     
     public func requestCameraPermission(completion: @escaping (Bool) -> Void = { _ in }) {

@@ -11,189 +11,287 @@ public struct OnboardingView: View {
     public var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: 24) {
-                Spacer().frame(height: 20)
+                Spacer().frame(height: 16)
                 
-                // Icon Badge
-                ZStack {
-                    RoundedRectangle(cornerRadius: 22)
-                        .fill(Color.obsidianSurface)
-                        .frame(width: 72, height: 72)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 22).stroke(Color.obsidianBorder, lineWidth: 1)
-                        )
-                    Image(systemName: "camera.fill")
-                        .font(.system(size: 32))
-                        .foregroundColor(.primaryBlue)
+                // Hero Studio Badge
+                VStack(spacing: 14) {
+                    ZStack {
+                        // Ambient Radial Glow
+                        Circle()
+                            .fill(Color.primaryBlue.opacity(0.2))
+                            .frame(width: 100, height: 100)
+                            .blur(radius: 20)
+                        
+                        RoundedRectangle(cornerRadius: 24)
+                            .fill(Color.obsidianSurface)
+                            .frame(width: 80, height: 80)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 24)
+                                    .stroke(
+                                        LinearGradient(
+                                            colors: [Color.primaryBlue.opacity(0.8), Color.primaryBlueDark.opacity(0.2)],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        ),
+                                        lineWidth: 1.5
+                                    )
+                            )
+                            .shadow(color: Color.primaryBlue.opacity(0.3), radius: 12, y: 4)
+                        
+                        Image(systemName: "camera.viewfinder")
+                            .font(.system(size: 38, weight: .semibold))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [Color.textPrimary, Color.primaryBlue],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                    }
+                    
+                    VStack(spacing: 6) {
+                        HStack(spacing: 8) {
+                            Text("FloatCam Pro")
+                                .font(.system(size: 28, weight: .bold))
+                                .foregroundColor(.textPrimary)
+                            
+                            Text("STUDIO")
+                                .font(.system(size: 10, weight: .black))
+                                .foregroundColor(.primaryBlue)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 3)
+                                .background(Color.primaryBlue.opacity(0.18))
+                                .clipShape(Capsule())
+                        }
+                        
+                        Text("Professional floating camera overlay & Picture-in-Picture studio for creators.")
+                            .font(.system(size: 14))
+                            .foregroundColor(.textSecondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 24)
+                    }
                 }
                 
-                VStack(spacing: 8) {
-                    Text("Welcome to FloatCam Pro")
-                        .font(.system(size: 26, weight: .bold))
-                        .foregroundColor(.textPrimary)
-                    Text("To enable floating camera overlays and Picture-in-Picture recording, please grant the following permissions.")
-                        .font(.system(size: 14))
-                        .foregroundColor(.textSecondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 16)
+                // Feature Highlight Bar
+                HStack(spacing: 12) {
+                    featurePill(icon: "pip.fill", title: "System PiP")
+                    featurePill(icon: "circle.circle", title: "Facecam Shapes")
+                    featurePill(icon: "sparkles.tv", title: "4K Capture")
                 }
+                .padding(.horizontal)
                 
+                // Permissions Section
                 VStack(spacing: 12) {
-                    // 1. Camera Access
-                    permissionCard(
+                    // 1. Camera Access (Required)
+                    interactivePermissionCard(
                         title: "Camera Access",
-                        description: "Required to preview and capture photos/videos.",
+                        description: "Powers live floating feed and in-app camera previews.",
                         icon: "camera.fill",
                         isGranted: permissionManager.cameraGranted,
+                        isDenied: permissionManager.cameraDenied,
                         isRequired: true
                     ) {
+                        HapticManager.shared.lightTap()
                         permissionManager.requestCameraPermission { _ in }
                     }
                     
-                    // 2. Photo Library
-                    permissionCard(
+                    // 2. Photo Library Access (Required)
+                    interactivePermissionCard(
                         title: "Photo Library Access",
-                        description: "Saves high-res photos and video recordings into your camera roll.",
+                        description: "Saves high-res captures directly into your camera roll.",
                         icon: "photo.on.rectangle",
                         isGranted: permissionManager.photoLibraryGranted,
+                        isDenied: permissionManager.photoLibraryDenied,
                         isRequired: true
                     ) {
+                        HapticManager.shared.lightTap()
                         permissionManager.requestPhotoLibraryPermission { _ in }
                     }
                     
-                    // 3. Microphone Access
-                    permissionCard(
+                    // 3. Microphone Access (Optional)
+                    interactivePermissionCard(
                         title: "Microphone Audio",
-                        description: "Records clear audio during video captures.",
+                        description: "Records clear studio audio during video captures.",
                         icon: "mic.fill",
                         isGranted: permissionManager.microphoneGranted,
+                        isDenied: permissionManager.microphoneDenied,
                         isRequired: false
                     ) {
+                        HapticManager.shared.lightTap()
                         permissionManager.requestMicrophonePermission { _ in }
-                    }
-                    
-                    // 4. Picture-in-Picture Explanation
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 18)
-                            .fill(Color.obsidianSurface)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 18).stroke(Color.obsidianBorder, lineWidth: 1)
-                            )
-                        HStack(spacing: 14) {
-                            Circle()
-                                .fill(Color.primaryBlue.opacity(0.15))
-                                .frame(width: 44, height: 44)
-                                .overlay(
-                                    Image(systemName: "pip.fill")
-                                        .font(.system(size: 20))
-                                        .foregroundColor(.primaryBlue)
-                                )
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("System Floating (PiP)")
-                                    .font(.system(size: 15, weight: .semibold))
-                                    .foregroundColor(.textPrimary)
-                                Text("Floats your camera feed over Home Screen and other apps using iOS Picture-in-Picture.")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.textSecondary)
-                            }
-                            Spacer()
-                        }
-                        .padding(16)
                     }
                 }
                 .padding(.horizontal)
                 
-                // Continue Button
-                let canProceed = permissionManager.allRequiredGranted
-                Button(action: {
-                    if canProceed {
+                // Bottom Actions
+                VStack(spacing: 12) {
+                    let canProceed = permissionManager.allRequiredGranted
+                    
+                    if !canProceed {
+                        // Quick Action: Grant All
+                        Button(action: {
+                            HapticManager.shared.mediumTap()
+                            permissionManager.requestAllPermissions()
+                        }) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "checkmark.shield.fill")
+                                    .font(.system(size: 15, weight: .bold))
+                                Text("Grant All Permissions")
+                                    .font(.system(size: 15, weight: .bold))
+                            }
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 52)
+                            .background(Color.primaryBlue)
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
+                            .shadow(color: Color.primaryBlue.opacity(0.35), radius: 8, y: 3)
+                        }
+                    }
+                    
+                    // Primary Continue Button
+                    Button(action: {
                         HapticManager.shared.successNotification()
                         onComplete()
-                    }
-                }) {
-                    Text(canProceed ? "Get Started with FloatCam Pro" : "Grant Required Permissions Above")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(canProceed ? .white : .textMuted)
+                    }) {
+                        HStack(spacing: 8) {
+                            Text(canProceed ? "Get Started with FloatCam Pro" : "Continue to Studio")
+                                .font(.system(size: 15, weight: .bold))
+                            Image(systemName: "arrow.right")
+                                .font(.system(size: 14, weight: .bold))
+                        }
+                        .foregroundColor(canProceed ? .white : .textPrimary)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 54)
-                        .background(canProceed ? Color.primaryBlue : Color.obsidianSurfaceVariant)
+                        .frame(height: 52)
+                        .background(canProceed ? Color.primaryBlue : Color.obsidianSurface)
                         .clipShape(RoundedRectangle(cornerRadius: 16))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(canProceed ? Color.clear : Color.obsidianBorder, lineWidth: 1)
+                        )
+                    }
                 }
-                .disabled(!canProceed)
                 .padding(.horizontal)
                 .padding(.bottom, 24)
             }
         }
-        .background(Color.obsidianBackground)
+        .background(Color.obsidianBackground.ignoresSafeArea())
         .onAppear {
+            permissionManager.checkPermissions()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
             permissionManager.checkPermissions()
         }
     }
     
-    private func permissionCard(
+    // MARK: - Components
+    private func featurePill(icon: String, title: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(.primaryBlue)
+            Text(title)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(.textSecondary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(Color.obsidianSurface)
+        .clipShape(Capsule())
+        .overlay(Capsule().stroke(Color.obsidianBorder, lineWidth: 1))
+    }
+    
+    private func interactivePermissionCard(
         title: String,
         description: String,
         icon: String,
         isGranted: Bool,
+        isDenied: Bool,
         isRequired: Bool,
         action: @escaping () -> Void
     ) -> some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 18)
-                .fill(Color.obsidianSurface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18).stroke(Color.obsidianBorder, lineWidth: 1)
-                )
-            
-            HStack(spacing: 14) {
-                Circle()
-                    .fill(isGranted ? Color.successGreen.opacity(0.15) : Color.obsidianSurfaceVariant)
-                    .frame(width: 44, height: 44)
+        Button(action: action) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 18)
+                    .fill(Color.obsidianSurface)
                     .overlay(
-                        Image(systemName: icon)
-                            .font(.system(size: 20))
-                            .foregroundColor(isGranted ? Color.successGreen : Color.textSecondary)
+                        RoundedRectangle(cornerRadius: 18)
+                            .stroke(
+                                isGranted ? Color.successGreen.opacity(0.4) : (isDenied ? Color.recordingRed.opacity(0.4) : Color.obsidianBorder),
+                                lineWidth: 1
+                            )
                     )
                 
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
-                        Text(title)
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(.textPrimary)
-                        if isRequired {
-                            Text("Required")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundColor(.recordingRed)
-                        }
-                    }
-                    Text(description)
-                        .font(.system(size: 12))
-                        .foregroundColor(.textSecondary)
-                }
-                
-                Spacer()
-                
-                if isGranted {
+                HStack(spacing: 14) {
                     Circle()
-                        .fill(Color.successGreen)
-                        .frame(width: 28, height: 28)
+                        .fill(isGranted ? Color.successGreen.opacity(0.15) : (isDenied ? Color.recordingRed.opacity(0.15) : Color.primaryBlue.opacity(0.12)))
+                        .frame(width: 44, height: 44)
                         .overlay(
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundColor(.white)
+                            Image(systemName: icon)
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundColor(isGranted ? Color.successGreen : (isDenied ? Color.recordingRed : Color.primaryBlue))
                         )
-                } else {
-                    Button(action: action) {
+                    
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 6) {
+                            Text(title)
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundColor(.textPrimary)
+                            if isRequired {
+                                Text("Required")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundColor(.recordingRed)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.recordingRed.opacity(0.15))
+                                    .clipShape(Capsule())
+                            }
+                        }
+                        Text(description)
+                            .font(.system(size: 11))
+                            .foregroundColor(.textSecondary)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                    }
+                    
+                    Spacer()
+                    
+                    if isGranted {
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 11, weight: .bold))
+                            Text("Allowed")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .foregroundColor(.successGreen)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.successGreen.opacity(0.12))
+                        .clipShape(Capsule())
+                    } else if isDenied {
+                        HStack(spacing: 4) {
+                            Image(systemName: "gearshape.fill")
+                                .font(.system(size: 10, weight: .bold))
+                            Text("Settings")
+                                .font(.system(size: 11, weight: .bold))
+                        }
+                        .foregroundColor(.recordingRed)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.recordingRed.opacity(0.15))
+                        .clipShape(Capsule())
+                    } else {
                         Text("Allow")
                             .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(.primaryBlue)
-                            .padding(.horizontal, 12)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 14)
                             .padding(.vertical, 6)
-                            .background(Color.primaryBlue.opacity(0.15))
+                            .background(Color.primaryBlue)
                             .clipShape(Capsule())
                     }
                 }
+                .padding(14)
             }
-            .padding(16)
         }
+        .buttonStyle(.plain)
     }
 }

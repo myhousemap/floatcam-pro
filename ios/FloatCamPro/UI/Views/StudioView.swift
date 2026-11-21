@@ -232,9 +232,13 @@ public struct StudioView: View {
         .background(Color.obsidianBackground)
         .onAppear {
             isPulsing = true
+            permissionManager.checkPermissions()
             if isOverlayActive {
                 cameraManager.startSession(settings: settings)
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+            permissionManager.checkPermissions()
         }
     }
     
