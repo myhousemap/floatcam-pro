@@ -45,8 +45,8 @@ public final class RemoteControlManager: NSObject {
         }
         
         // 3. Toggle Play/Pause (e.g. AirPods tap / Earbuds squeeze) -> Toggle Record
-        commandCenter.togglePlayPauseStatusCommand.isEnabled = true
-        commandCenter.togglePlayPauseStatusCommand.addTarget { _ in
+        commandCenter.togglePlayPauseCommand.isEnabled = true
+        commandCenter.togglePlayPauseCommand.addTarget { _ in
             Task { @MainActor in
                 CameraManager.shared.toggleRecording()
                 RemoteControlManager.shared.updateNowPlaying()

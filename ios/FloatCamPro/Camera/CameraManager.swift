@@ -195,7 +195,6 @@ public final class CameraManager: NSObject, ObservableObject {
                     guard let self = self else { return }
                     self.recordingDuration += 1
                     PiPManager.shared.updateHUD(isRecording: true, duration: self.recordingDuration, lens: self.currentLens)
-                    RemoteControlManager.shared.updateNowPlaying()
                 }
             }
         }
