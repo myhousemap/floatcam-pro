@@ -136,11 +136,9 @@ public final class PiPManager: NSObject, ObservableObject {
         }
     }
     
-    @MainActor
     public func updateSettings(settings: CameraSettings) {
     }
     
-    @MainActor
     public func updateHUD(isRecording: Bool, duration: TimeInterval, lens: CameraLens, resolution: VideoResolution? = nil) {
     }
     
@@ -227,6 +225,13 @@ extension PiPManager: AVPictureInPictureSampleBufferPlaybackDelegate {
         DispatchQueue.main.async {
             CameraManager.shared.toggleRecording()
         }
+    }
+    
+    public func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, didTransitionToRenderSize newRenderSize: CMVideoDimensions) {
+    }
+    
+    public func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, skipByInterval skipInterval: CMTime, completion completionHandler: @escaping () -> Void) {
+        completionHandler()
     }
 }
 
