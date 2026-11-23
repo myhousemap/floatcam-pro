@@ -12,6 +12,7 @@ public struct FloatingOverlayView: View {
     @State private var isMinimized: Bool = false
     @State private var isHudVisible: Bool = true
     @State private var hudTimer: Timer?
+    @State private var isPaused: Bool = false
     
     public init(settings: Binding<CameraSettings>, onClose: @escaping () -> Void) {
         self._settings = settings
@@ -33,7 +34,7 @@ public struct FloatingOverlayView: View {
         GeometryReader { geometry in
             ZStack(alignment: .topLeading) {
                 if isMinimized {
-                    // Minimized Edge Bubble
+                    // Minimized Edge Bubble (Identical to Android bg_minimized_pill)
                     Circle()
                         .fill(Color.obsidianSurface)
                         .frame(width: 56, height: 56)
@@ -77,7 +78,7 @@ public struct FloatingOverlayView: View {
                             HapticManager.shared.lightTap()
                         }
                 } else {
-                    // Full Floating Camera Window
+                    // Full Floating Camera Window (Identical to Android windowContainer)
                     VStack(spacing: 0) {
                         ZStack {
                             // Camera Preview Feed
@@ -101,23 +102,23 @@ public struct FloatingOverlayView: View {
                                     toggleHud()
                                 }
                             
-                            // Glassmorphic HUD Controls
+                            // Glassmorphic HUD Controls (Auto-fades after 3s)
                             if isHudVisible {
                                 hudOverlay
                                     .transition(.opacity.animation(.easeInOut(duration: 0.2)))
                             }
                             
-                            // Corner Resize Handle (Bottom-Right)
+                            // Corner Resize Handle (Bottom-Right, Identical to ic_resize_handle)
                             if !isLocked {
                                 VStack {
                                     Spacer()
                                     HStack {
                                         Spacer()
                                         Image(systemName: "arrow.up.left.and.arrow.down.right")
-                                            .font(.system(size: 14, weight: .bold))
-                                            .foregroundColor(.white.opacity(0.8))
-                                            .frame(width: 28, height: 28)
-                                            .background(Color.obsidianSurface.opacity(0.8))
+                                            .font(.system(size: 13, weight: .bold))
+                                            .foregroundColor(.white.opacity(0.85))
+                                            .frame(width: 26, height: 26)
+                                            .background(Color.obsidianSurface.opacity(0.85))
                                             .clipShape(Circle())
                                             .gesture(
                                                 DragGesture()
@@ -132,7 +133,7 @@ public struct FloatingOverlayView: View {
                                             )
                                     }
                                 }
-                                .padding(8)
+                                .padding(6)
                             }
                         }
                         .frame(width: currentWidth, height: currentHeight)
@@ -172,48 +173,53 @@ public struct FloatingOverlayView: View {
         }
     }
     
-    // MARK: - HUD Controls Overlay
+    // MARK: - HUD Controls Overlay (Matches overlay_camera_view.xml)
     private var hudOverlay: some View {
         VStack {
-            // TOP BAR
-            HStack(spacing: 8) {
-                // Recording Timer Badge
+            // TOP HUD BAR
+            HStack(spacing: 6) {
+                // Live Recording Timer Badge (bg_recording_badge)
                 if cameraManager.isRecording {
                     HStack(spacing: 4) {
                         Circle()
                             .fill(Color.recordingRed)
                             .frame(width: 8, height: 8)
                         Text(formatDuration(cameraManager.recordingDuration))
-                            .font(.system(size: 11, weight: .bold))
+                            .font(.system(size: 11, weight: .bold, design: .monospaced))
                             .foregroundColor(.white)
                     }
                     .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 3)
                     .background(Color.recordingRedDark)
                     .clipShape(Capsule())
                 }
                 
                 Spacer()
                 
-                // Torch Switch (Rear only)
+                // Quick Torch Toggle (btnTorch)
                 if settings.lens == .back {
                     hudButton(icon: cameraManager.isTorchOn ? "flashlight.on.fill" : "flashlight.off.fill") {
                         cameraManager.toggleTorch()
                     }
                 }
                 
-                // Mirror Toggle
+                // Mirror Toggle (btnMirror)
                 hudButton(icon: "arrow.left.and.right.righttriangle.left.righttriangle.right") {
                     settings.mirrorFrontCamera.toggle()
                 }
                 
-                // Lock Toggle
+                // Shape Preset Toggle (btnShape)
+                hudButton(icon: "aspectratio") {
+                    cycleShape()
+                }
+                
+                // Lock Window Movement (btnLock)
                 hudButton(icon: isLocked ? "lock.fill" : "lock.open.fill") {
                     isLocked.toggle()
                     HapticManager.shared.lightTap()
                 }
                 
-                // Minimize Button
+                // Minimize Window (btnMinimize)
                 hudButton(icon: "minus") {
                     withAnimation(.spring()) {
                         isMinimized = true
@@ -221,7 +227,7 @@ public struct FloatingOverlayView: View {
                     HapticManager.shared.snapHaptic()
                 }
                 
-                // Close Button
+                // Close Window & Stop (btnClose)
                 hudButton(icon: "xmark") {
                     onClose()
                 }
@@ -234,59 +240,97 @@ public struct FloatingOverlayView: View {
             
             Spacer()
             
-            // BOTTOM BAR
+            // BOTTOM HUD BAR
             VStack(spacing: 4) {
-                // Main Controls: Flip, Shutter, Record
+                // Opacity Slider Row (opacityContainer)
+                HStack(spacing: 8) {
+                    Text("\(Int(settings.opacity * 100))%")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(.textSecondary)
+                        .frame(width: 32, alignment: .leading)
+                    
+                    Slider(
+                        value: $settings.opacity,
+                        in: 0.3...1.0,
+                        step: 0.05
+                    )
+                    .tint(Color.primaryBlue)
+                }
+                .padding(.horizontal, 8)
+                
+                // Main Actions: Flip, Shutter, Record, Pause
                 HStack(spacing: 16) {
-                    // Flip Camera
+                    // Flip Camera (btnFlipCamera)
                     hudButton(icon: "camera.rotate.fill") {
                         cameraManager.flipCamera()
                         settings.lens = (settings.lens == .front) ? .back : .front
                     }
                     
-                    // Photo Shutter Button
+                    // Photo Shutter (btnShutter)
                     Button(action: {
                         cameraManager.takePhoto()
                         resetAutoHideHud()
                     }) {
                         Circle()
                             .fill(Color.white)
-                            .frame(width: 38, height: 38)
+                            .frame(width: 36, height: 36)
                             .overlay(
-                                Circle().stroke(Color.primaryBlue, lineWidth: 3)
+                                Circle().stroke(Color.primaryBlue, lineWidth: 2.5)
                             )
                     }
                     
-                    // Video Record Button
+                    // Video Record / Stop (btnRecord)
                     Button(action: {
                         cameraManager.toggleRecording()
                         resetAutoHideHud()
                     }) {
                         Circle()
                             .fill(cameraManager.isRecording ? Color.recordingRedDark : Color.recordingRed)
-                            .frame(width: 38, height: 38)
+                            .frame(width: 36, height: 36)
                             .overlay(
                                 Group {
                                     if cameraManager.isRecording {
                                         RoundedRectangle(cornerRadius: 3)
                                             .fill(Color.white)
-                                            .frame(width: 14, height: 14)
+                                            .frame(width: 13, height: 13)
                                     } else {
                                         Circle()
                                             .fill(Color.white)
-                                            .frame(width: 14, height: 14)
+                                            .frame(width: 13, height: 13)
                                     }
                                 }
                             )
                     }
+                    
+                    // Pause / Resume during recording (btnPauseResume)
+                    if cameraManager.isRecording {
+                        hudButton(icon: isPaused ? "play.fill" : "pause.fill") {
+                            isPaused.toggle()
+                        }
+                    }
                 }
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(Color.obsidianSurface.opacity(0.85))
-            .clipShape(Capsule())
+            .clipShape(RoundedRectangle(cornerRadius: 18))
             .padding(6)
         }
+    }
+    
+    private func cycleShape() {
+        switch settings.shape {
+        case .circle:
+            settings.shape = .square1x1
+        case .square1x1:
+            settings.shape = .portrait9x16
+        case .portrait9x16:
+            settings.shape = .landscape16x9
+        case .landscape16x9:
+            settings.shape = .circle
+        }
+        HapticManager.shared.lightTap()
+        resetAutoHideHud()
     }
     
     private func hudButton(icon: String, action: @escaping () -> Void) -> some View {
@@ -298,7 +342,7 @@ public struct FloatingOverlayView: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(.white)
                 .frame(width: 28, height: 28)
-                .background(Color.white.opacity(0.15))
+                .background(Color.obsidianSurfaceVariant.opacity(0.7))
                 .clipShape(Circle())
         }
     }

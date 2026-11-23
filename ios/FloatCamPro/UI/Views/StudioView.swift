@@ -2,19 +2,27 @@ import SwiftUI
 
 public struct StudioView: View {
     @Binding var settings: CameraSettings
+    @Binding var isOverlayActive: Bool
     @ObservedObject var cameraManager = CameraManager.shared
     @ObservedObject var pipManager = PiPManager.shared
     @ObservedObject var permissionManager = PermissionManager.shared
     
-    public init(settings: Binding<CameraSettings>) {
+    @State private var isPulsing: Bool = false
+    
+    public init(settings: Binding<CameraSettings>, isOverlayActive: Binding<Bool>) {
         self._settings = settings
+        self._isOverlayActive = isOverlayActive
+    }
+    
+    private var isRunning: Bool {
+        isOverlayActive || pipManager.isPiPActive
     }
     
     public var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: 20) {
-                // Top Title & Status Header
-                HStack {
+            VStack(spacing: 24) {
+                // Top App Bar / Title (Matches Android StudioScreen)
+                HStack(alignment: .center) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("FloatCam Pro")
                             .font(.system(size: 26, weight: .bold))
@@ -26,34 +34,30 @@ public struct StudioView: View {
                     
                     Spacer()
                     
-                    // Status Pill
+                    // Status Pill (Matches Android Status Pill)
                     HStack(spacing: 6) {
                         Circle()
-                            .fill(pipManager.isPiPActive ? Color.successGreen : (cameraManager.isRunning ? Color.primaryBlue : Color.textMuted))
+                            .fill(statusDotColor)
                             .frame(width: 8, height: 8)
-                        
-                        let statusText: String = {
-                            if pipManager.isPiPActive { return "FLOATING OVER APPS" }
-                            if cameraManager.isRunning { return "CAMERA READY" }
-                            return "STANDBY"
-                        }()
+                            .scaleEffect(isRunning ? (isPulsing ? 1.2 : 0.85) : 1.0)
+                            .animation(isRunning ? Animation.easeInOut(duration: 0.8).repeatForever(autoreverses: true) : .default, value: isPulsing)
                         
                         Text(statusText)
                             .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(pipManager.isPiPActive ? Color.successGreen : (cameraManager.isRunning ? Color.primaryBlue : Color.textMuted))
+                            .foregroundColor(statusDotColor)
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .background(pipManager.isPiPActive ? Color.successGreen.opacity(0.15) : Color.obsidianSurfaceVariant)
+                    .background(statusPillBg)
                     .clipShape(Capsule())
                     .overlay(
-                        Capsule().stroke(pipManager.isPiPActive ? Color.successGreen.opacity(0.5) : Color.obsidianBorder, lineWidth: 1)
+                        Capsule().stroke(statusPillBorder, lineWidth: 1)
                     )
                 }
-                .padding(.horizontal)
-                .padding(.top, 12)
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
                 
-                // Camera Permission Warning Banner if missing
+                // Camera Permission Alert Banner (if missing)
                 if !permissionManager.cameraGranted {
                     HStack(spacing: 12) {
                         Image(systemName: "camera.badge.ellipsis")
@@ -86,63 +90,35 @@ public struct StudioView: View {
                     .overlay(
                         RoundedRectangle(cornerRadius: 14).stroke(Color.recordingRed.opacity(0.4), lineWidth: 1)
                     )
-                    .padding(.horizontal)
+                    .padding(.horizontal, 20)
                 }
                 
-                // Live Interactive Visual Mockup Card with Live Viewfinder
+                // Live Visual Mockup Preview Card (Matches Android StudioMockupCard)
                 studioMockupCard
-                    .padding(.horizontal)
+                    .padding(.horizontal, 20)
                 
-                // Studio Live Camera Deck (Flip, Record Video, Shutter, Torch)
-                studioControlDeck
-                    .padding(.horizontal)
-                
-                // Primary Action Button (System-Wide Floating Camera Over Gemini & Other Apps)
+                // Primary Launch / Stop Button (Matches Android Button)
                 Button(action: {
-                    if !cameraManager.isRunning {
-                        cameraManager.startSession(settings: settings)
-                    }
-                    if pipManager.isPiPActive {
-                        pipManager.stopPiP()
-                    } else {
-                        pipManager.startPiP()
-                    }
+                    toggleFloatingCamera()
                 }) {
-                    HStack(spacing: 14) {
-                        Image(systemName: pipManager.isPiPActive ? "stop.circle.fill" : "pip.enter")
-                            .font(.system(size: 24, weight: .bold))
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(pipManager.isPiPActive ? "FLOATING CAMERA ACTIVE" : "START FLOATING CAMERA")
-                                .font(.system(size: 16, weight: .bold))
-                            Text(pipManager.isPiPActive ? "Camera is floating over other apps • Tap to Stop" : "Camera stays small & floats on screen over all apps")
-                                .font(.system(size: 11))
-                                .foregroundColor(.white.opacity(0.85))
-                        }
-                        Spacer()
-                        if pipManager.isPiPActive {
-                            Text("STOP")
-                                .font(.system(size: 12, weight: .bold))
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(Color.white.opacity(0.2))
-                                .clipShape(Capsule())
-                        }
+                    HStack(spacing: 10) {
+                        Image(systemName: isRunning ? "xmark" : "play.fill")
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundColor(.white)
+                        
+                        Text(isRunning ? "Stop Floating Camera" : "Launch Floating Camera")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.white)
                     }
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 18)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 62)
-                    .background(pipManager.isPiPActive ? Color.recordingRed : Color.primaryBlue)
+                    .frame(height: 58)
+                    .background(isRunning ? Color.recordingRed : Color.primaryBlue)
                     .clipShape(RoundedRectangle(cornerRadius: 18))
-                    .shadow(color: (pipManager.isPiPActive ? Color.recordingRed : Color.primaryBlue).opacity(0.4), radius: 10, y: 5)
+                    .shadow(color: (isRunning ? Color.recordingRed : Color.primaryBlue).opacity(0.4), radius: 6, y: 3)
                 }
-                .padding(.horizontal)
+                .padding(.horizontal, 20)
                 
-                // iOS Floating Controls & Gestures Guide
-                floatingGuideCard
-                    .padding(.horizontal)
-                
-                // Quick Studio Presets
+                // Quick Studio Presets (Matches Android ChipCategorySection)
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Quick Studio Presets")
                         .font(.system(size: 15, weight: .semibold))
@@ -185,7 +161,6 @@ public struct StudioView: View {
                             studioChip(
                                 title: "Mic On",
                                 icon: "mic.fill",
-                                subLabel: "Clear Sound",
                                 isSelected: settings.audioEnabled
                             ) {
                                 settings.audioEnabled = true
@@ -193,7 +168,6 @@ public struct StudioView: View {
                             studioChip(
                                 title: "Muted",
                                 icon: "mic.slash.fill",
-                                subLabel: "Silent Video",
                                 isSelected: !settings.audioEnabled
                             ) {
                                 settings.audioEnabled = false
@@ -216,186 +190,78 @@ public struct StudioView: View {
                         }
                     }
                 }
-                .padding(.horizontal)
-                .padding(.bottom, 24)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 32)
             }
         }
         .background(Color.obsidianBackground)
         .onAppear {
+            isPulsing = true
             permissionManager.checkPermissions()
-            if permissionManager.cameraGranted && !cameraManager.isRunning {
-                cameraManager.startSession(settings: settings)
-            }
             RemoteControlManager.shared.setupRemoteCommands()
         }
-        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
-            permissionManager.checkPermissions()
-            if permissionManager.cameraGranted && !cameraManager.isRunning {
-                cameraManager.startSession(settings: settings)
+    }
+    
+    // MARK: - Actions
+    private func toggleFloatingCamera() {
+        if isRunning {
+            withAnimation(.spring()) {
+                isOverlayActive = false
             }
+            pipManager.stopPiP()
+            cameraManager.stopSession()
+            HapticManager.shared.lightTap()
+        } else {
+            if !permissionManager.cameraGranted {
+                permissionManager.requestCameraPermission()
+                return
+            }
+            withAnimation(.spring()) {
+                isOverlayActive = true
+            }
+            cameraManager.startSession(settings: settings)
+            pipManager.startPiP()
+            HapticManager.shared.mediumTap()
         }
     }
     
-    // MARK: - Dedicated Studio Camera Control Deck
-    private var studioControlDeck: some View {
-        VStack(spacing: 12) {
-            // Live Recording Timer Indicator (when recording is active)
-            if cameraManager.isRecording {
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(Color.recordingRed)
-                        .frame(width: 10, height: 10)
-                    Text("RECORDING LIVE")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(.recordingRed)
-                    Spacer()
-                    Text(formatDuration(cameraManager.recordingDuration))
-                        .font(.system(size: 15, weight: .heavy, design: .monospaced))
-                        .foregroundColor(.white)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(Color.recordingRed.opacity(0.18))
-                .clipShape(Capsule())
-                .overlay(
-                    Capsule().stroke(Color.recordingRed.opacity(0.4), lineWidth: 1)
-                )
-                .transition(.opacity.combined(with: .scale))
-            }
-            
-            // Camera Buttons Deck
-            HStack(spacing: 24) {
-                // 1. Flip Camera Button
-                Button(action: {
-                    cameraManager.flipCamera()
-                    settings.lens = (settings.lens == .front) ? .back : .front
-                    HapticManager.shared.lightTap()
-                }) {
-                    VStack(spacing: 4) {
-                        Circle()
-                            .fill(Color.obsidianSurfaceVariant)
-                            .frame(width: 52, height: 52)
-                            .overlay(
-                                Image(systemName: "camera.rotate.fill")
-                                    .font(.system(size: 20, weight: .semibold))
-                                    .foregroundColor(.textPrimary)
-                            )
-                            .overlay(
-                                Circle().stroke(Color.obsidianBorder, lineWidth: 1)
-                            )
-                        Text(settings.lens == .front ? "Front" : "Rear")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.textSecondary)
-                    }
-                }
-                
-                // 2. Video Record Button (Hero Shutter)
-                Button(action: {
-                    cameraManager.toggleRecording()
-                    HapticManager.shared.recordHaptic()
-                }) {
-                    VStack(spacing: 4) {
-                        ZStack {
-                            Circle()
-                                .stroke(Color.recordingRed.opacity(0.4), lineWidth: 4)
-                                .frame(width: 72, height: 72)
-                            
-                            if cameraManager.isRecording {
-                                RoundedRectangle(cornerRadius: 6)
-                                    .fill(Color.recordingRed)
-                                    .frame(width: 26, height: 26)
-                            } else {
-                                Circle()
-                                    .fill(Color.recordingRed)
-                                    .frame(width: 54, height: 54)
-                            }
-                        }
-                        Text(cameraManager.isRecording ? "Stop" : "Record")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(cameraManager.isRecording ? .recordingRed : .textPrimary)
-                    }
-                }
-                
-                // 3. Photo Shutter Button
-                Button(action: {
-                    cameraManager.takePhoto()
-                    HapticManager.shared.lightTap()
-                }) {
-                    VStack(spacing: 4) {
-                        Circle()
-                            .fill(Color.obsidianSurfaceVariant)
-                            .frame(width: 52, height: 52)
-                            .overlay(
-                                Circle()
-                                    .fill(Color.white)
-                                    .frame(width: 32, height: 32)
-                            )
-                            .overlay(
-                                Circle().stroke(Color.obsidianBorder, lineWidth: 1)
-                            )
-                        Text("Photo")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.textSecondary)
-                    }
-                }
-                
-                // 4. Torch Toggle (Visible when Rear Camera is active)
-                if settings.lens == .back {
-                    Button(action: {
-                        cameraManager.toggleTorch()
-                        HapticManager.shared.lightTap()
-                    }) {
-                        VStack(spacing: 4) {
-                            Circle()
-                                .fill(cameraManager.isTorchOn ? Color.primaryBlue.opacity(0.2) : Color.obsidianSurfaceVariant)
-                                .frame(width: 52, height: 52)
-                                .overlay(
-                                    Image(systemName: cameraManager.isTorchOn ? "flashlight.on.fill" : "flashlight.off.fill")
-                                        .font(.system(size: 18, weight: .semibold))
-                                        .foregroundColor(cameraManager.isTorchOn ? .primaryBlue : .textPrimary)
-                                )
-                                .overlay(
-                                    Circle().stroke(cameraManager.isTorchOn ? Color.primaryBlue : Color.obsidianBorder, lineWidth: 1)
-                                )
-                            Text("Torch")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(.textSecondary)
-                        }
-                    }
-                }
-            }
-            .padding(.vertical, 8)
-        }
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity)
-        .background(Color.obsidianSurface.opacity(0.6))
-        .clipShape(RoundedRectangle(cornerRadius: 18))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18).stroke(Color.obsidianBorder, lineWidth: 1)
-        )
+    // MARK: - Status Pill Helpers
+    private var statusDotColor: Color {
+        if cameraManager.isRecording { return Color.recordingRed }
+        if isRunning { return Color.successGreen }
+        return Color.textMuted
     }
     
-    // MARK: - Mockup Card View
+    private var statusText: String {
+        if cameraManager.isRecording { return "RECORDING" }
+        if isRunning { return "OVERLAY ACTIVE" }
+        return "STANDBY"
+    }
+    
+    private var statusPillBg: Color {
+        if isRunning { return Color.successGreen.opacity(0.15) }
+        return Color.obsidianSurfaceVariant
+    }
+    
+    private var statusPillBorder: Color {
+        if isRunning { return Color.successGreen.opacity(0.5) }
+        return Color.obsidianBorder
+    }
+    
+    // MARK: - StudioMockupCard (1:1 with Android StudioMockupCard)
     private var studioMockupCard: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 24)
                 .fill(Color.obsidianSurface)
-                .frame(height: 250)
+                .frame(height: 260)
                 .overlay(
                     RoundedRectangle(cornerRadius: 24).stroke(Color.obsidianBorder, lineWidth: 1)
                 )
             
-            // Mockup Shape Display with Live Camera Feed
+            // Live Shape Mockup Box
             VStack {
-                if permissionManager.cameraGranted {
-                    PiPView(session: cameraManager.session, settings: settings)
-                        .frame(
-                            width: mockupWidth,
-                            height: mockupHeight
-                        )
-                        .shadow(color: Color(hex: settings.borderColorHex).opacity(0.3), radius: 8)
-                } else {
-                    // Frame placeholder when camera permission not yet granted
+                ZStack(alignment: .topTrailing) {
+                    // Shape Outline
                     mockupShape
                         .fill(Color.obsidianSurfaceVariant.opacity(settings.opacity))
                         .overlay(
@@ -409,80 +275,42 @@ public struct StudioView: View {
                             height: mockupHeight
                         )
                     
+                    // Mock camera lens representation
                     VStack(spacing: 6) {
                         Circle()
                             .fill(Color.obsidianBackground)
-                            .frame(width: 48, height: 48)
+                            .frame(width: 52, height: 52)
                             .overlay(
-                                Image(systemName: "camera.badge.ellipsis")
-                                    .font(.system(size: 22))
-                                    .foregroundColor(.recordingRed)
+                                Circle().stroke(Color(hex: settings.borderColorHex).opacity(0.5), lineWidth: 1)
                             )
-                        Text("Camera Permission Required")
-                            .font(.system(size: 12, weight: .semibold))
+                            .overlay(
+                                Image(systemName: (settings.lens == .front) ? "person.crop.circle" : "camera.fill")
+                                    .font(.system(size: 26))
+                                    .foregroundColor(Color(hex: settings.borderColorHex))
+                            )
+                        
+                        Text(settings.shape.rawValue)
+                            .font(.system(size: 11, weight: .semibold))
                             .foregroundColor(.textPrimary)
+                        
+                        Text("\(settings.resolution.rawValue) • \(settings.fps.label)")
+                            .font(.system(size: 9))
+                            .foregroundColor(.textSecondary)
+                    }
+                    .frame(width: mockupWidth, height: mockupHeight)
+                    
+                    // Top corner badge if recording (Matches Android REC badge)
+                    if cameraManager.isRecording {
+                        Text("REC")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.recordingRed)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .padding(8)
                     }
                 }
-            }
-        }
-    }
-    
-    // MARK: - iOS Floating Guide Card
-    private var floatingGuideCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                Image(systemName: "info.circle.fill")
-                    .foregroundColor(.primaryBlue)
-                    .font(.system(size: 16))
-                Text("How Floating Camera Works on iOS")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(.textPrimary)
-            }
-            
-            VStack(alignment: .leading, spacing: 8) {
-                guideRow(
-                    icon: "arrow.up.left.and.arrow.down.right",
-                    title: "Pinch to Resize",
-                    detail: "Pinch two fingers anywhere on the floating camera to make it larger or smaller."
-                )
-                guideRow(
-                    icon: "hand.draw.fill",
-                    title: "Drag Anywhere",
-                    detail: "Move the floating camera to any corner of your screen over Gemini AI, Meta AI or any app."
-                )
-                guideRow(
-                    icon: "slider.horizontal.3",
-                    title: "Control From Any App (Control Center)",
-                    detail: "Swipe down iOS Control Center: tap Play/Pause to Record, Next to Flip lens."
-                )
-                guideRow(
-                    icon: "arrow.up.right.square.fill",
-                    title: "One-Tap Return to Studio",
-                    detail: "Tap the floating window's ↗ icon to jump back to full studio controls instantly."
-                )
-            }
-        }
-        .padding(14)
-        .background(Color.obsidianSurface)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16).stroke(Color.primaryBlue.opacity(0.3), lineWidth: 1)
-        )
-    }
-    
-    private func guideRow(icon: String, title: String, detail: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: icon)
-                .font(.system(size: 12, weight: .bold))
-                .foregroundColor(.primaryBlue)
-                .frame(width: 18, height: 18)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.textPrimary)
-                Text(detail)
-                    .font(.system(size: 10))
-                    .foregroundColor(.textSecondary)
             }
         }
     }
@@ -500,23 +328,23 @@ public struct StudioView: View {
     
     private var mockupWidth: CGFloat {
         switch settings.shape {
-        case .circle, .square1x1: return 160
-        case .portrait9x16: return 110
-        case .landscape16x9: return 200
+        case .circle, .square1x1: return 170
+        case .portrait9x16: return 120
+        case .landscape16x9: return 220
         }
     }
     
     private var mockupHeight: CGFloat {
         switch settings.shape {
-        case .circle, .square1x1: return 160
-        case .portrait9x16: return 195
-        case .landscape16x9: return 120
+        case .circle, .square1x1: return 170
+        case .portrait9x16: return 210
+        case .landscape16x9: return 130
         }
     }
     
     // MARK: - Helpers
     private func chipCategory<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             Text(title)
                 .font(.system(size: 12, weight: .medium))
                 .foregroundColor(.textSecondary)
@@ -524,7 +352,7 @@ public struct StudioView: View {
         }
     }
     
-    private func studioChip(title: String, icon: String, subLabel: String? = nil, isSelected: Bool, action: @escaping () -> Void) -> some View {
+    private func studioChip(title: String, icon: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: {
             action()
             HapticManager.shared.lightTap()
@@ -532,24 +360,18 @@ public struct StudioView: View {
             HStack(spacing: 6) {
                 Image(systemName: icon)
                     .font(.system(size: 12))
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(title)
-                        .font(.system(size: 12, weight: isSelected ? .bold : .regular))
-                    if let sub = subLabel {
-                        Text(sub)
-                            .font(.system(size: 9))
-                            .foregroundColor(isSelected ? .white.opacity(0.8) : .textMuted)
-                    }
-                }
+                Text(title)
+                    .font(.system(size: 12, weight: isSelected ? .bold : .regular))
+                    .lineLimit(1)
             }
             .foregroundColor(isSelected ? .white : .textSecondary)
             .padding(.horizontal, 10)
-            .padding(.vertical, 8)
+            .padding(.vertical, 10)
             .frame(maxWidth: .infinity)
-            .background(isSelected ? Color.primaryBlue.opacity(0.25) : Color.obsidianSurface)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .background(isSelected ? Color.primaryBlue.opacity(0.2) : Color.obsidianSurface)
+            .clipShape(RoundedRectangle(cornerRadius: 14))
             .overlay(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 14)
                     .stroke(isSelected ? Color.primaryBlue : Color.obsidianBorder, lineWidth: 1)
             )
         }
@@ -571,11 +393,5 @@ public struct StudioView: View {
         case .portrait9x16: return "iphone"
         case .landscape16x9: return "tv"
         }
-    }
-    
-    private func formatDuration(_ duration: TimeInterval) -> String {
-        let mins = Int(duration) / 60
-        let secs = Int(duration) % 60
-        return String(format: "%02d:%02d", mins, secs)
     }
 }

@@ -19,6 +19,8 @@ public enum AppTab: String, CaseIterable, Identifiable {
 public struct MainTabView: View {
     @State private var selectedTab: AppTab = .studio
     @State private var settings = CameraSettings()
+    @State private var isOverlayActive: Bool = false
+    @ObservedObject var cameraManager = CameraManager.shared
     
     public init() {}
     
@@ -26,12 +28,18 @@ public struct MainTabView: View {
         ZStack {
             Color.obsidianBackground.ignoresSafeArea()
             
+            // Persistent Hidden PiP Anchor View (keeps PiP controller always active in window hierarchy)
+            PiPView(session: cameraManager.session, settings: settings)
+                .frame(width: 1, height: 1)
+                .opacity(0.01)
+                .allowsHitTesting(false)
+            
             VStack(spacing: 0) {
                 // Tab Content
                 Group {
                     switch selectedTab {
                     case .studio:
-                        StudioView(settings: $settings)
+                        StudioView(settings: $settings, isOverlayActive: $isOverlayActive)
                     case .gallery:
                         GalleryView()
                     case .settings:
@@ -70,6 +78,18 @@ public struct MainTabView: View {
                 )
                 .padding(.horizontal, 16)
                 .padding(.bottom, 6)
+            }
+            
+            // Floating Camera Overlay Window (Matches Android Floating Window 100%)
+            if isOverlayActive {
+                FloatingOverlayView(settings: $settings) {
+                    withAnimation(.spring()) {
+                        isOverlayActive = false
+                    }
+                    PiPManager.shared.stopPiP()
+                    CameraManager.shared.stopSession()
+                }
+                .transition(.scale.combined(with: .opacity))
             }
         }
     }

@@ -18,14 +18,24 @@ public final class PiPManager: NSObject, ObservableObject {
     private var possibleObservation: NSKeyValueObservation?
     private var pendingStartPiP: Bool = false
     
-    // Dynamic HUD Overlays
-    private var statusBadge: UIView?
-    private var statusDot: UIView?
-    private var statusLabel: UILabel?
-    private var lensBadge: UIView?
-    private var lensLabel: UILabel?
-    private var hintBadge: UIView?
-    private var hintLabel: UILabel?
+    // Android-style HUD views inside PiP window (Matching overlay_camera_view.xml)
+    private var topBarView: UIView?
+    private var recordingBadge: UIView?
+    private var recordingDot: UIView?
+    private var recordingTimerLabel: UILabel?
+    private var liveStandbyLabel: UILabel?
+    private var torchIconView: UIImageView?
+    private var mirrorIconView: UIImageView?
+    private var shapeIconView: UIImageView?
+    private var closeIconView: UIImageView?
+    
+    private var bottomBarView: UIView?
+    private var flipIconView: UIImageView?
+    private var shutterIconView: UIView?
+    private var recordButtonContainer: UIView?
+    private var recordButtonInner: UIView?
+    
+    private var resizeHandleIcon: UIImageView?
     
     public override init() {
         super.init()
@@ -71,112 +81,196 @@ public final class PiPManager: NSObject, ObservableObject {
         self.previewLayer = preview
         self.cameraContainerView = cameraView
         
-        // 3. Dynamic Live HUD Badges inside PiP window
-        // 3a. Top Left Status Badge (Live status / REC timer)
-        let hudView = UIView()
-        hudView.backgroundColor = UIColor(white: 0.08, alpha: 0.8)
-        hudView.layer.cornerRadius = 11
-        hudView.layer.masksToBounds = true
-        hudView.layer.borderWidth = 1
-        hudView.layer.borderColor = UIColor(white: 0.35, alpha: 0.6).cgColor
-        hudView.translatesAutoresizingMaskIntoConstraints = false
+        // 3. Android-Matching HUD Overlays (Matching overlay_camera_view.xml)
         
-        let dot = UIView()
-        dot.backgroundColor = UIColor(red: 0.06, green: 0.73, blue: 0.51, alpha: 1.0)
-        dot.layer.cornerRadius = 4
-        dot.layer.masksToBounds = true
-        dot.translatesAutoresizingMaskIntoConstraints = false
-        hudView.addSubview(dot)
+        // 3a. TOP HUD BAR (Matches topBar in overlay_camera_view.xml)
+        let topBar = UIView()
+        topBar.backgroundColor = UIColor(red: 11/255, green: 13/255, blue: 18/255, alpha: 0.85)
+        topBar.layer.cornerRadius = 13
+        topBar.layer.masksToBounds = true
+        topBar.layer.borderWidth = 1
+        topBar.layer.borderColor = UIColor(red: 79/255, green: 140/255, blue: 255/255, alpha: 0.3).cgColor
+        topBar.translatesAutoresizingMaskIntoConstraints = false
         
-        let label = UILabel()
-        label.text = "FLOATCAM LIVE"
-        label.font = UIFont.systemFont(ofSize: 9, weight: .bold)
-        label.textColor = .white
-        label.translatesAutoresizingMaskIntoConstraints = false
-        hudView.addSubview(label)
+        // Recording Badge (Matches bg_recording_badge)
+        let recBadge = UIView()
+        recBadge.backgroundColor = UIColor(red: 214/255, green: 40/255, blue: 57/255, alpha: 0.9)
+        recBadge.layer.cornerRadius = 10
+        recBadge.layer.masksToBounds = true
+        recBadge.translatesAutoresizingMaskIntoConstraints = false
+        recBadge.isHidden = true
+        
+        let recDot = UIView()
+        recDot.backgroundColor = .white
+        recDot.layer.cornerRadius = 3.5
+        recDot.layer.masksToBounds = true
+        recDot.translatesAutoresizingMaskIntoConstraints = false
+        recBadge.addSubview(recDot)
+        
+        let recTimer = UILabel()
+        recTimer.text = "00:00"
+        recTimer.font = UIFont.monospacedDigitSystemFont(ofSize: 10, weight: .bold)
+        recTimer.textColor = .white
+        recTimer.translatesAutoresizingMaskIntoConstraints = false
+        recBadge.addSubview(recTimer)
         
         NSLayoutConstraint.activate([
-            dot.leadingAnchor.constraint(equalTo: hudView.leadingAnchor, constant: 7),
-            dot.centerYAnchor.constraint(equalTo: hudView.centerYAnchor),
-            dot.widthAnchor.constraint(equalToConstant: 8),
-            dot.heightAnchor.constraint(equalToConstant: 8),
+            recDot.leadingAnchor.constraint(equalTo: recBadge.leadingAnchor, constant: 6),
+            recDot.centerYAnchor.constraint(equalTo: recBadge.centerYAnchor),
+            recDot.widthAnchor.constraint(equalToConstant: 7),
+            recDot.heightAnchor.constraint(equalToConstant: 7),
             
-            label.leadingAnchor.constraint(equalTo: dot.trailingAnchor, constant: 5),
-            label.trailingAnchor.constraint(equalTo: hudView.trailingAnchor, constant: -7),
-            label.centerYAnchor.constraint(equalTo: hudView.centerYAnchor)
+            recTimer.leadingAnchor.constraint(equalTo: recDot.trailingAnchor, constant: 4),
+            recTimer.trailingAnchor.constraint(equalTo: recBadge.trailingAnchor, constant: -6),
+            recTimer.centerYAnchor.constraint(equalTo: recBadge.centerYAnchor)
+        ])
+        topBar.addSubview(recBadge)
+        self.recordingBadge = recBadge
+        self.recordingDot = recDot
+        self.recordingTimerLabel = recTimer
+        
+        // Standby Brand Label when not recording
+        let standbyLbl = UILabel()
+        standbyLbl.text = "FLOATCAM"
+        standbyLbl.font = UIFont.systemFont(ofSize: 9, weight: .bold)
+        standbyLbl.textColor = UIColor(red: 79/255, green: 140/255, blue: 255/255, alpha: 1.0)
+        standbyLbl.translatesAutoresizingMaskIntoConstraints = false
+        topBar.addSubview(standbyLbl)
+        self.liveStandbyLabel = standbyLbl
+        
+        // Top Action Icons: Torch, Mirror, Shape, Close
+        let iconStack = UIStackView()
+        iconStack.axis = .horizontal
+        iconStack.spacing = 6
+        iconStack.alignment = .center
+        iconStack.translatesAutoresizingMaskIntoConstraints = false
+        
+        let torchImg = createHudIcon(systemName: "flashlight.off.fill")
+        let mirrorImg = createHudIcon(systemName: "arrow.left.and.right.righttriangle.left.righttriangle.right")
+        let shapeImg = createHudIcon(systemName: "aspectratio")
+        let closeImg = createHudIcon(systemName: "xmark")
+        
+        iconStack.addArrangedSubview(torchImg)
+        iconStack.addArrangedSubview(mirrorImg)
+        iconStack.addArrangedSubview(shapeImg)
+        iconStack.addArrangedSubview(closeImg)
+        topBar.addSubview(iconStack)
+        
+        self.torchIconView = torchImg
+        self.mirrorIconView = mirrorImg
+        self.shapeIconView = shapeImg
+        self.closeIconView = closeImg
+        
+        NSLayoutConstraint.activate([
+            recBadge.leadingAnchor.constraint(equalTo: topBar.leadingAnchor, constant: 4),
+            recBadge.centerYAnchor.constraint(equalTo: topBar.centerYAnchor),
+            recBadge.heightAnchor.constraint(equalToConstant: 20),
+            
+            standbyLbl.leadingAnchor.constraint(equalTo: topBar.leadingAnchor, constant: 8),
+            standbyLbl.centerYAnchor.constraint(equalTo: topBar.centerYAnchor),
+            
+            iconStack.trailingAnchor.constraint(equalTo: topBar.trailingAnchor, constant: -6),
+            iconStack.centerYAnchor.constraint(equalTo: topBar.centerYAnchor)
         ])
         
-        cameraView.addSubview(hudView)
-        self.statusBadge = hudView
-        self.statusDot = dot
-        self.statusLabel = label
+        cameraView.addSubview(topBar)
+        self.topBarView = topBar
         
-        // 3b. Top Right Lens Badge
-        let lensView = UIView()
-        lensView.backgroundColor = UIColor(white: 0.08, alpha: 0.8)
-        lensView.layer.cornerRadius = 11
-        lensView.layer.masksToBounds = true
-        lensView.layer.borderWidth = 1
-        lensView.layer.borderColor = UIColor(white: 0.35, alpha: 0.6).cgColor
-        lensView.translatesAutoresizingMaskIntoConstraints = false
+        // 3b. BOTTOM HUD BAR (Matches bottomBar in overlay_camera_view.xml)
+        let bottomBar = UIView()
+        bottomBar.backgroundColor = UIColor(red: 11/255, green: 13/255, blue: 18/255, alpha: 0.85)
+        bottomBar.layer.cornerRadius = 16
+        bottomBar.layer.masksToBounds = true
+        bottomBar.layer.borderWidth = 1
+        bottomBar.layer.borderColor = UIColor(red: 79/255, green: 140/255, blue: 255/255, alpha: 0.3).cgColor
+        bottomBar.translatesAutoresizingMaskIntoConstraints = false
         
-        let lensLbl = UILabel()
-        lensLbl.text = "\(settings.lens == .front ? "FRONT" : "REAR") • \(settings.resolution.rawValue)"
-        lensLbl.font = UIFont.systemFont(ofSize: 9, weight: .bold)
-        lensLbl.textColor = UIColor(white: 0.95, alpha: 1.0)
-        lensLbl.translatesAutoresizingMaskIntoConstraints = false
-        lensView.addSubview(lensLbl)
+        let bottomStack = UIStackView()
+        bottomStack.axis = .horizontal
+        bottomStack.spacing = 14
+        bottomStack.alignment = .center
+        bottomStack.translatesAutoresizingMaskIntoConstraints = false
         
+        // Flip Camera Button Icon
+        let flipImg = createHudIcon(systemName: "camera.rotate.fill", size: 14)
+        bottomStack.addArrangedSubview(flipImg)
+        self.flipIconView = flipImg
+        
+        // Photo Shutter Icon (White circular button)
+        let shutterView = UIView()
+        shutterView.backgroundColor = .white
+        shutterView.layer.cornerRadius = 13
+        shutterView.layer.masksToBounds = true
+        shutterView.layer.borderWidth = 2
+        shutterView.layer.borderColor = UIColor(red: 79/255, green: 140/255, blue: 255/255, alpha: 1.0).cgColor
+        shutterView.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            lensLbl.leadingAnchor.constraint(equalTo: lensView.leadingAnchor, constant: 7),
-            lensLbl.trailingAnchor.constraint(equalTo: lensView.trailingAnchor, constant: -7),
-            lensLbl.centerYAnchor.constraint(equalTo: lensView.centerYAnchor)
+            shutterView.widthAnchor.constraint(equalToConstant: 26),
+            shutterView.heightAnchor.constraint(equalToConstant: 26)
+        ])
+        bottomStack.addArrangedSubview(shutterView)
+        self.shutterIconView = shutterView
+        
+        // Video Record Button Icon (Red outer ring + inner solid red / stop square)
+        let recContainer = UIView()
+        recContainer.backgroundColor = UIColor(red: 255/255, green: 77/255, blue: 90/255, alpha: 1.0)
+        recContainer.layer.cornerRadius = 13
+        recContainer.layer.masksToBounds = true
+        recContainer.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            recContainer.widthAnchor.constraint(equalToConstant: 26),
+            recContainer.heightAnchor.constraint(equalToConstant: 26)
         ])
         
-        cameraView.addSubview(lensView)
-        self.lensBadge = lensView
-        self.lensLabel = lensLbl
-        
-        // 3c. Bottom Gestures Hint Pill
-        let hintView = UIView()
-        hintView.backgroundColor = UIColor(white: 0.05, alpha: 0.72)
-        hintView.layer.cornerRadius = 9
-        hintView.layer.masksToBounds = true
-        hintView.translatesAutoresizingMaskIntoConstraints = false
-        
-        let hintLbl = UILabel()
-        hintLbl.text = "Pinch to Resize • Tap ↗ for Studio"
-        hintLbl.font = UIFont.systemFont(ofSize: 8.5, weight: .semibold)
-        hintLbl.textColor = UIColor(white: 0.9, alpha: 0.95)
-        hintLbl.textAlignment = .center
-        hintLbl.translatesAutoresizingMaskIntoConstraints = false
-        hintView.addSubview(hintLbl)
-        
+        let recInner = UIView()
+        recInner.backgroundColor = .white
+        recInner.layer.cornerRadius = 5
+        recInner.layer.masksToBounds = true
+        recInner.translatesAutoresizingMaskIntoConstraints = false
+        recContainer.addSubview(recInner)
         NSLayoutConstraint.activate([
-            hintLbl.leadingAnchor.constraint(equalTo: hintView.leadingAnchor, constant: 6),
-            hintLbl.trailingAnchor.constraint(equalTo: hintView.trailingAnchor, constant: -6),
-            hintLbl.centerYAnchor.constraint(equalTo: hintView.centerYAnchor)
+            recInner.centerXAnchor.constraint(equalTo: recContainer.centerXAnchor),
+            recInner.centerYAnchor.constraint(equalTo: recContainer.centerYAnchor),
+            recInner.widthAnchor.constraint(equalToConstant: 10),
+            recInner.heightAnchor.constraint(equalToConstant: 10)
+        ])
+        bottomStack.addArrangedSubview(recContainer)
+        self.recordButtonContainer = recContainer
+        self.recordButtonInner = recInner
+        
+        bottomBar.addSubview(bottomStack)
+        NSLayoutConstraint.activate([
+            bottomStack.centerXAnchor.constraint(equalTo: bottomBar.centerXAnchor),
+            bottomStack.centerYAnchor.constraint(equalTo: bottomBar.centerYAnchor)
         ])
         
-        cameraView.addSubview(hintView)
-        self.hintBadge = hintView
-        self.hintLabel = hintLbl
+        cameraView.addSubview(bottomBar)
+        self.bottomBarView = bottomBar
         
-        // AutoLayout Anchors inside cameraView
+        // 3c. Corner Resize Handle (Bottom-Right, Matches ic_resize_handle)
+        let resizeImg = UIImageView(image: UIImage(systemName: "arrow.up.left.and.arrow.down.right"))
+        resizeImg.tintColor = UIColor(white: 0.85, alpha: 0.8)
+        resizeImg.contentMode = .scaleAspectFit
+        resizeImg.translatesAutoresizingMaskIntoConstraints = false
+        cameraView.addSubview(resizeImg)
+        self.resizeHandleIcon = resizeImg
+        
+        // Layout Top Bar, Bottom Bar & Resize Handle
         NSLayoutConstraint.activate([
-            hudView.topAnchor.constraint(equalTo: cameraView.topAnchor, constant: 8),
-            hudView.leadingAnchor.constraint(equalTo: cameraView.leadingAnchor, constant: 8),
-            hudView.heightAnchor.constraint(equalToConstant: 22),
+            topBar.topAnchor.constraint(equalTo: cameraView.topAnchor, constant: 6),
+            topBar.leadingAnchor.constraint(equalTo: cameraView.leadingAnchor, constant: 8),
+            topBar.trailingAnchor.constraint(equalTo: cameraView.trailingAnchor, constant: -8),
+            topBar.heightAnchor.constraint(equalToConstant: 26),
             
-            lensView.topAnchor.constraint(equalTo: cameraView.topAnchor, constant: 8),
-            lensView.trailingAnchor.constraint(equalTo: cameraView.trailingAnchor, constant: -8),
-            lensView.heightAnchor.constraint(equalToConstant: 22),
+            bottomBar.bottomAnchor.constraint(equalTo: cameraView.bottomAnchor, constant: -6),
+            bottomBar.centerXAnchor.constraint(equalTo: cameraView.centerXAnchor),
+            bottomBar.widthAnchor.constraint(equalToConstant: 130),
+            bottomBar.heightAnchor.constraint(equalToConstant: 34),
             
-            hintView.bottomAnchor.constraint(equalTo: cameraView.bottomAnchor, constant: -6),
-            hintView.centerXAnchor.constraint(equalTo: cameraView.centerXAnchor),
-            hintView.heightAnchor.constraint(equalToConstant: 18),
-            hintView.leadingAnchor.constraint(greaterThanOrEqualTo: cameraView.leadingAnchor, constant: 8),
-            hintView.trailingAnchor.constraint(lessThanOrEqualTo: cameraView.trailingAnchor, constant: -8)
+            resizeImg.bottomAnchor.constraint(equalTo: cameraView.bottomAnchor, constant: -5),
+            resizeImg.trailingAnchor.constraint(equalTo: cameraView.trailingAnchor, constant: -5),
+            resizeImg.widthAnchor.constraint(equalToConstant: 14),
+            resizeImg.heightAnchor.constraint(equalToConstant: 14)
         ])
         
         // 4. Mount cameraView into callVC.view
@@ -225,7 +319,6 @@ public final class PiPManager: NSObject, ObservableObject {
         self.pipController = controller
         self.isPiPPossible = controller.isPictureInPicturePossible
         
-        // If start was requested before controller was ready, trigger immediately
         if self.pendingStartPiP && controller.isPictureInPicturePossible {
             self.pendingStartPiP = false
             controller.startPictureInPicture()
@@ -233,23 +326,33 @@ public final class PiPManager: NSObject, ObservableObject {
         }
     }
     
+    private func createHudIcon(systemName: String, size: CGFloat = 12) -> UIImageView {
+        let imgView = UIImageView(image: UIImage(systemName: systemName))
+        imgView.tintColor = .white
+        imgView.contentMode = .scaleAspectFit
+        imgView.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            imgView.widthAnchor.constraint(equalToConstant: size),
+            imgView.heightAnchor.constraint(equalToConstant: size)
+        ])
+        return imgView
+    }
+    
     public func updateHUD(isRecording: Bool, duration: TimeInterval, lens: CameraLens, resolution: VideoResolution? = nil) {
         if isRecording {
-            statusBadge?.backgroundColor = UIColor(red: 0.88, green: 0.12, blue: 0.18, alpha: 0.9)
-            statusBadge?.layer.borderColor = UIColor.white.withAlphaComponent(0.6).cgColor
-            statusDot?.backgroundColor = .white
+            recordingBadge?.isHidden = false
+            liveStandbyLabel?.isHidden = true
             let mins = Int(duration) / 60
             let secs = Int(duration) % 60
-            statusLabel?.text = String(format: "REC %02d:%02d", mins, secs)
+            recordingTimerLabel?.text = String(format: "%02d:%02d", mins, secs)
+            
+            // Record button turns to stop square
+            recordButtonInner?.layer.cornerRadius = 2
         } else {
-            statusBadge?.backgroundColor = UIColor(white: 0.08, alpha: 0.8)
-            statusBadge?.layer.borderColor = UIColor(white: 0.35, alpha: 0.6).cgColor
-            statusDot?.backgroundColor = UIColor(red: 0.06, green: 0.73, blue: 0.51, alpha: 1.0)
-            statusLabel?.text = "FLOATCAM LIVE"
+            recordingBadge?.isHidden = true
+            liveStandbyLabel?.isHidden = false
+            recordButtonInner?.layer.cornerRadius = 5
         }
-        
-        let resStr = resolution?.rawValue ?? "1080p"
-        lensLabel?.text = "\(lens == .front ? "FRONT" : "REAR") • \(resStr)"
     }
     
     public func updateSettings(settings: CameraSettings) {
@@ -298,7 +401,7 @@ public final class PiPManager: NSObject, ObservableObject {
             return
         }
         
-        // Continuous retry: checks every 100ms up to 30 times (3 seconds) until PiP is ready
+        // Continuous retry loop: checks every 100ms up to 30 times (3 seconds)
         var attempts = 0
         Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] timer in
             guard let self = self else {
