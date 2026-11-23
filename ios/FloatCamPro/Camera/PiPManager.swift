@@ -1,3 +1,5 @@
+import UIKit
+import CoreMedia
 import AVKit
 import AVFoundation
 import SwiftUI
@@ -21,6 +23,20 @@ public final class SampleBufferContainerView: UIView {
         super.init(coder: coder)
         backgroundColor = .black
         sampleBufferLayer.videoGravity = .resizeAspectFill
+    }
+    
+    public override func layoutSubviews() {
+        super.layoutSubviews()
+        sampleBufferLayer.frame = bounds
+    }
+    
+    public override func didMoveToWindow() {
+        super.didMoveToWindow()
+        if window != nil {
+            DispatchQueue.main.async {
+                PiPManager.shared.isPiPPossible = PiPManager.shared.pipController?.isPictureInPicturePossible ?? false
+            }
+        }
     }
 }
 
@@ -204,7 +220,7 @@ extension PiPManager: AVPictureInPictureSampleBufferPlaybackDelegate {
         }
     }
     
-    public func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, skipByInterval skipInterval: CMTime, completion completionHandler: @escaping () -> Void) {
+    public func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, skipByInterval skipInterval: CMTime, completionHandler: @escaping () -> Void) {
         DispatchQueue.main.async {
             CameraManager.shared.flipCamera()
             completionHandler()

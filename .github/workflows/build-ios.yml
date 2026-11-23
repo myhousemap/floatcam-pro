@@ -25,6 +25,7 @@ jobs:
 
       - name: Build & Archive iOS App
         run: |
+          set -o pipefail
           xcodebuild -project FloatCamPro.xcodeproj \
             -scheme FloatCamPro \
             -configuration Release \
@@ -33,7 +34,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            archive
+            archive 2>&1 | tee xcodebuild.log || (echo "=== XCODEBUILD ERROR LOG ===" && grep -E "(error:|fatal error:)" xcodebuild.log && exit 1)
 
       - name: Package Unsigned IPA with Injected Privacy Descriptions & Multitasking Capabilities
         run: |
