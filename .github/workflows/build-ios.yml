@@ -34,7 +34,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            archive 2>&1 | tee xcodebuild.log || (echo "=== XCODEBUILD ERROR LOG ===" && grep -E "(error:|fatal error:)" xcodebuild.log && exit 1)
+            archive 2>&1 | tee xcodebuild.log || (echo "=== XCODEBUILD ERROR LOG ===" && (grep -C 3 -E "(error:|fatal error:)" xcodebuild.log || tail -n 100 xcodebuild.log) && exit 1)
 
       - name: Package Unsigned IPA with Injected Privacy Descriptions & Multitasking Capabilities
         run: |
@@ -88,5 +88,5 @@ jobs:
           TAG_NAME="v1.0.12-build.${{ github.run_number }}"
           gh release create "$TAG_NAME" build/FloatCamPro.ipa \
             --title "FloatCam Pro iOS ($TAG_NAME)" \
-            --notes "FloatCam Pro iOS v1.0.12 (Production Build 17): Migrated Picture-in-Picture pipeline to AVSampleBufferDisplayLayer with live AVCaptureVideoDataOutput frame stream. Guarantees isPictureInPicturePossible is true, eliminates video call controller restrictions, activates instant PiP floating over Home Screen, Gemini AI, Meta AI, and Safari. Includes button launch indicator and remote controls." \
+            --notes "FloatCam Pro iOS v1.0.12 (Production): Complete system-wide Picture-in-Picture floating camera over Home Screen and all iOS apps (Gemini AI, Meta AI, Safari). Built with AVSampleBufferDisplayLayer and live AVCaptureVideoDataOutput frame stream, AVAssetWriter hardware-accelerated video recording, and instant Launch Floating Camera control." \
             --latest

@@ -61,16 +61,21 @@ public final class PiPManager: NSObject, ObservableObject {
         configureAudioSession()
     }
     
-    public func configureAudioSession() {
+    public func configureAudioSession(audioEnabled: Bool = false) {
         do {
             let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .moviePlayback, options: [.mixWithOthers])
+            if audioEnabled {
+                try session.setCategory(.playAndRecord, mode: .videoRecording, options: [.defaultToSpeaker, .allowBluetooth, .mixWithOthers])
+            } else {
+                try session.setCategory(.playback, mode: .moviePlayback, options: [.mixWithOthers])
+            }
             try session.setActive(true)
         } catch {
-            print("AudioSession playback configuration notice: \(error)")
+            print("AudioSession configuration notice: \(error)")
         }
     }
     
+    @MainActor
     public func setupPiP(with containerView: SampleBufferContainerView, settings: CameraSettings) {
         guard AVPictureInPictureController.isPictureInPictureSupported() else { return }
         self.isPiPSupported = true
@@ -78,7 +83,7 @@ public final class PiPManager: NSObject, ObservableObject {
         let layer = containerView.sampleBufferLayer
         self.sampleBufferLayer = layer
         
-        configureAudioSession()
+        configureAudioSession(audioEnabled: settings.audioEnabled)
         
         // Connect ContentSource using sampleBufferDisplayLayer and playbackDelegate
         let contentSource = AVPictureInPictureController.ContentSource(
@@ -131,12 +136,15 @@ public final class PiPManager: NSObject, ObservableObject {
         }
     }
     
+    @MainActor
     public func updateSettings(settings: CameraSettings) {
     }
     
+    @MainActor
     public func updateHUD(isRecording: Bool, duration: TimeInterval, lens: CameraLens, resolution: VideoResolution? = nil) {
     }
     
+    @MainActor
     public func startPiP() {
         configureAudioSession()
         RemoteControlManager.shared.setupRemoteCommands()
@@ -185,6 +193,7 @@ public final class PiPManager: NSObject, ObservableObject {
         }
     }
     
+    @MainActor
     public func stopPiP() {
         pendingStartPiP = false
         isLaunchingPiP = false
@@ -218,16 +227,6 @@ extension PiPManager: AVPictureInPictureSampleBufferPlaybackDelegate {
         DispatchQueue.main.async {
             CameraManager.shared.toggleRecording()
         }
-    }
-    
-    public func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, skipByInterval skipInterval: CMTime, completionHandler: @escaping () -> Void) {
-        DispatchQueue.main.async {
-            CameraManager.shared.flipCamera()
-            completionHandler()
-        }
-    }
-    
-    public func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, didTransitionToRenderSize newRenderSize: CMVideoDimensions) {
     }
 }
 
