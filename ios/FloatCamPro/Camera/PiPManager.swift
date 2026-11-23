@@ -24,7 +24,6 @@ public final class SampleBufferContainerView: UIView {
     }
 }
 
-@MainActor
 public final class PiPManager: NSObject, ObservableObject {
     public static let shared = PiPManager()
     
@@ -74,10 +73,11 @@ public final class PiPManager: NSObject, ObservableObject {
         let controller = AVPictureInPictureController(contentSource: contentSource)
         controller.delegate = self
         controller.canStartPictureInPictureAutomaticallyFromInline = true
+        controller.requiresLinearPlayback = true
         
         self.possibleObservation?.invalidate()
         self.possibleObservation = controller.observe(\.isPictureInPicturePossible, options: [.initial, .new]) { [weak self] ctrl, _ in
-            Task { @MainActor in
+            DispatchQueue.main.async {
                 guard let self = self else { return }
                 self.isPiPPossible = ctrl.isPictureInPicturePossible
                 if ctrl.isPictureInPicturePossible && self.pendingStartPiP {
@@ -102,7 +102,7 @@ public final class PiPManager: NSObject, ObservableObject {
             layer.enqueue(sampleBuffer)
             if !hasEnqueuedFirstFrame {
                 hasEnqueuedFirstFrame = true
-                Task { @MainActor in
+                DispatchQueue.main.async {
                     self.isPiPPossible = self.pipController?.isPictureInPicturePossible ?? false
                     if self.pendingStartPiP, let controller = self.pipController, controller.isPictureInPicturePossible {
                         self.pendingStartPiP = false
@@ -116,7 +116,6 @@ public final class PiPManager: NSObject, ObservableObject {
     }
     
     public func updateSettings(settings: CameraSettings) {
-        // Sample buffer display layer auto-sizes to containerView bounds
     }
     
     public func updateHUD(isRecording: Bool, duration: TimeInterval, lens: CameraLens, resolution: VideoResolution? = nil) {
@@ -153,15 +152,19 @@ public final class PiPManager: NSObject, ObservableObject {
             attempts += 1
             if let controller = self.pipController, controller.isPictureInPicturePossible {
                 timer.invalidate()
-                self.pendingStartPiP = false
-                self.isLaunchingPiP = false
-                controller.startPictureInPicture()
-                HapticManager.shared.lightTap()
+                DispatchQueue.main.async {
+                    self.pendingStartPiP = false
+                    self.isLaunchingPiP = false
+                    controller.startPictureInPicture()
+                    HapticManager.shared.lightTap()
+                }
             } else if attempts >= 60 {
                 timer.invalidate()
-                self.pendingStartPiP = false
-                self.isLaunchingPiP = false
-                print("PiP launch wait completed. isPictureInPicturePossible=\(self.pipController?.isPictureInPicturePossible ?? false)")
+                DispatchQueue.main.async {
+                    self.pendingStartPiP = false
+                    self.isLaunchingPiP = false
+                    print("PiP launch wait completed. isPictureInPicturePossible=\(self.pipController?.isPictureInPicturePossible ?? false)")
+                }
             }
         }
     }
@@ -192,16 +195,20 @@ extension PiPManager: AVPictureInPictureSampleBufferPlaybackDelegate {
     }
     
     public func pictureInPictureControllerIsPlaybackPaused(_ pictureInPictureController: AVPictureInPictureController) -> Bool {
-        return !CameraManager.shared.isRunning
+        return false
     }
     
     public func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, setPlaying playing: Bool) {
-        CameraManager.shared.toggleRecording()
+        DispatchQueue.main.async {
+            CameraManager.shared.toggleRecording()
+        }
     }
     
     public func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, skipByInterval skipInterval: CMTime, completion completionHandler: @escaping () -> Void) {
-        CameraManager.shared.flipCamera()
-        completionHandler()
+        DispatchQueue.main.async {
+            CameraManager.shared.flipCamera()
+            completionHandler()
+        }
     }
     
     public func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, didTransitionToRenderSize newRenderSize: CMVideoDimensions) {
@@ -211,33 +218,41 @@ extension PiPManager: AVPictureInPictureSampleBufferPlaybackDelegate {
 // MARK: - AVPictureInPictureControllerDelegate
 extension PiPManager: AVPictureInPictureControllerDelegate {
     public func pictureInPictureControllerWillStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
-        isPiPActive = true
-        isLaunchingPiP = false
+        DispatchQueue.main.async {
+            self.isPiPActive = true
+            self.isLaunchingPiP = false
+        }
     }
     
     public func pictureInPictureControllerDidStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
-        isPiPActive = true
-        pendingStartPiP = false
-        isLaunchingPiP = false
-        RemoteControlManager.shared.setupRemoteCommands()
-        RemoteControlManager.shared.updateNowPlaying()
-        HapticManager.shared.successNotification()
+        DispatchQueue.main.async {
+            self.isPiPActive = true
+            self.pendingStartPiP = false
+            self.isLaunchingPiP = false
+            RemoteControlManager.shared.setupRemoteCommands()
+            RemoteControlManager.shared.updateNowPlaying()
+            HapticManager.shared.successNotification()
+        }
     }
     
     public func pictureInPictureControllerWillStopPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
     }
     
     public func pictureInPictureControllerDidStopPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
-        isPiPActive = false
-        pendingStartPiP = false
-        isLaunchingPiP = false
+        DispatchQueue.main.async {
+            self.isPiPActive = false
+            self.pendingStartPiP = false
+            self.isLaunchingPiP = false
+        }
     }
     
     public func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, failedToStartPictureInPictureWithError error: Error) {
-        print("PiP failed: \(error)")
-        isPiPActive = false
-        pendingStartPiP = false
-        isLaunchingPiP = false
+        DispatchQueue.main.async {
+            print("PiP failed: \(error)")
+            self.isPiPActive = false
+            self.pendingStartPiP = false
+            self.isLaunchingPiP = false
+        }
     }
     
     public func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, restoreUserInterfaceForPictureInPictureStopWithCompletionHandler completionHandler: @escaping (Bool) -> Void) {
