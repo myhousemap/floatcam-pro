@@ -2,6 +2,15 @@ import AVKit
 import AVFoundation
 import SwiftUI
 
+public final class FloatCamPiPViewController: AVPictureInPictureVideoCallViewController {
+    public var onLayout: ((CGRect) -> Void)?
+    
+    public override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        onLayout?(view.bounds)
+    }
+}
+
 @MainActor
 public final class PiPManager: NSObject, ObservableObject {
     public static let shared = PiPManager()
@@ -11,7 +20,7 @@ public final class PiPManager: NSObject, ObservableObject {
     @Published public var isPiPPossible: Bool = false
     
     public var pipController: AVPictureInPictureController?
-    private var callVC: AVPictureInPictureVideoCallViewController?
+    private var callVC: FloatCamPiPViewController?
     private var previewLayer: AVCaptureVideoPreviewLayer?
     private var cameraContainerView: UIView?
     private weak var hostView: UIView?
@@ -40,17 +49,22 @@ public final class PiPManager: NSObject, ObservableObject {
     public override init() {
         super.init()
         isPiPSupported = AVPictureInPictureController.isPictureInPictureSupported()
-        configureAudioSessionAsync()
+        configureAudioSession()
     }
     
-    public func configureAudioSessionAsync() {
-        DispatchQueue.global(qos: .userInitiated).async {
+    public func configureAudioSession() {
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playAndRecord, mode: .videoChat, options: [.defaultToSpeaker, .allowBluetooth, .mixWithOthers])
+            try session.setActive(true, options: .notifyOthersOnDeactivation)
+        } catch {
+            print("AudioSession playAndRecord configuration notice: \(error)")
             do {
                 let session = AVAudioSession.sharedInstance()
-                try session.setCategory(.playAndRecord, mode: .videoChat, options: [.defaultToSpeaker, .allowBluetooth, .mixWithOthers])
+                try session.setCategory(.playback, mode: .moviePlayback, options: [.mixWithOthers])
                 try session.setActive(true)
             } catch {
-                print("AudioSession configuration notice: \(error)")
+                print("AudioSession fallback notice: \(error)")
             }
         }
     }
@@ -58,12 +72,19 @@ public final class PiPManager: NSObject, ObservableObject {
     public func setupPiP(with hostView: UIView, session: AVCaptureSession, settings: CameraSettings) {
         guard isPiPSupported else { return }
         self.hostView = hostView
-        configureAudioSessionAsync()
+        configureAudioSession()
         
         // 1. Create Video Call View Controller
-        let callVC = AVPictureInPictureVideoCallViewController()
+        let callVC = FloatCamPiPViewController()
         let targetSize = pipSize(for: settings.shape)
         callVC.preferredContentSize = targetSize
+        callVC.onLayout = { [weak self] bounds in
+            guard bounds.width > 0, bounds.height > 0 else { return }
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            self?.previewLayer?.frame = bounds
+            CATransaction.commit()
+        }
         
         // 2. Setup Camera Container View
         let cameraView = UIView(frame: hostView.bounds)
@@ -384,26 +405,36 @@ public final class PiPManager: NSObject, ObservableObject {
     
     public func updatePiPFrame(bounds: CGRect) {
         guard bounds.width > 0, bounds.height > 0 else { return }
+        callVC?.view.frame = bounds
+        cameraContainerView?.frame = bounds
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
         previewLayer?.frame = bounds
+        CATransaction.commit()
     }
     
     public func startPiP() {
-        configureAudioSessionAsync()
+        configureAudioSession()
         RemoteControlManager.shared.setupRemoteCommands()
         RemoteControlManager.shared.updateNowPlaying()
         
-        pendingStartPiP = true
+        guard let controller = pipController else {
+            print("PiP controller is nil")
+            return
+        }
         
-        if let controller = pipController, controller.isPictureInPicturePossible {
+        if controller.isPictureInPicturePossible {
             pendingStartPiP = false
             controller.startPictureInPicture()
             HapticManager.shared.lightTap()
             return
         }
         
-        // Continuous retry loop: checks every 100ms up to 30 times (3 seconds)
+        pendingStartPiP = true
+        
+        // Fast retry loop: checks every 50ms up to 40 times (2.0s)
         var attempts = 0
-        Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] timer in
+        Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] timer in
             guard let self = self else {
                 timer.invalidate()
                 return
@@ -414,9 +445,10 @@ public final class PiPManager: NSObject, ObservableObject {
                 self.pendingStartPiP = false
                 controller.startPictureInPicture()
                 HapticManager.shared.lightTap()
-            } else if attempts >= 30 {
+            } else if attempts >= 40 {
                 timer.invalidate()
                 self.pendingStartPiP = false
+                print("PiP launch wait completed. isPictureInPicturePossible=\(self.pipController?.isPictureInPicturePossible ?? false)")
             }
         }
     }
@@ -440,12 +472,20 @@ public final class PiPManager: NSObject, ObservableObject {
 }
 
 extension PiPManager: AVPictureInPictureControllerDelegate {
+    public func pictureInPictureControllerWillStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
+        isPiPActive = true
+    }
+    
     public func pictureInPictureControllerDidStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
         isPiPActive = true
         pendingStartPiP = false
         RemoteControlManager.shared.setupRemoteCommands()
         RemoteControlManager.shared.updateNowPlaying()
         HapticManager.shared.successNotification()
+    }
+    
+    public func pictureInPictureControllerWillStopPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
+        // Prepare for stopping PiP
     }
     
     public func pictureInPictureControllerDidStopPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
@@ -457,7 +497,10 @@ extension PiPManager: AVPictureInPictureControllerDelegate {
             callVC.view.frame = hostView.bounds
             callVC.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
             hostView.addSubview(callVC.view)
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
             previewLayer?.frame = callVC.view.bounds
+            CATransaction.commit()
         }
     }
     
@@ -465,5 +508,9 @@ extension PiPManager: AVPictureInPictureControllerDelegate {
         print("PiP failed: \(error)")
         isPiPActive = false
         pendingStartPiP = false
+    }
+    
+    public func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, restoreUserInterfaceForPictureInPictureStopWithCompletionHandler completionHandler: @escaping (Bool) -> Void) {
+        completionHandler(true)
     }
 }

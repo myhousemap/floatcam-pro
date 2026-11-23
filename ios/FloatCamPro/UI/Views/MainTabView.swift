@@ -28,23 +28,20 @@ public struct MainTabView: View {
         ZStack {
             Color.obsidianBackground.ignoresSafeArea()
             
-            // Persistent Hidden PiP Anchor View (keeps PiP controller always active in window hierarchy)
-            PiPView(session: cameraManager.session, settings: settings)
-                .frame(width: 1, height: 1)
-                .opacity(0.01)
-                .allowsHitTesting(false)
-            
             VStack(spacing: 0) {
-                // Tab Content
-                Group {
-                    switch selectedTab {
-                    case .studio:
-                        StudioView(settings: $settings, isOverlayActive: $isOverlayActive)
-                    case .gallery:
-                        GalleryView()
-                    case .settings:
-                        SettingsView(settings: $settings)
-                    }
+                // Tab Content with ZStack preservation (keeps StudioView & PiP anchor connected in window)
+                ZStack {
+                    StudioView(settings: $settings, isOverlayActive: $isOverlayActive)
+                        .opacity(selectedTab == .studio ? 1 : 0)
+                        .allowsHitTesting(selectedTab == .studio)
+                    
+                    GalleryView()
+                        .opacity(selectedTab == .gallery ? 1 : 0)
+                        .allowsHitTesting(selectedTab == .gallery)
+                    
+                    SettingsView(settings: $settings)
+                        .opacity(selectedTab == .settings ? 1 : 0)
+                        .allowsHitTesting(selectedTab == .settings)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 

@@ -194,13 +194,77 @@ public struct SettingsView: View {
                     .padding()
                 }
                 
-                // 3. App Details
+                // 3. System Picture-in-Picture Guide (iOS Multi-App Floating)
+                sectionHeader("SYSTEM PICTURE-IN-PICTURE (iOS)")
+                settingsCard {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Image(systemName: "pip.fill")
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundColor(.primaryBlue)
+                            Text("Floating Camera Over Other Apps")
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundColor(.textPrimary)
+                        }
+                        
+                        Text("FloatCam Pro uses Apple's native AVPictureInPictureVideoCallViewController so your camera window stays floating over Gemini AI, Meta AI, Safari, WhatsApp, YouTube, and the Home Screen.")
+                            .font(.system(size: 12))
+                            .foregroundColor(.textSecondary)
+                            .lineSpacing(2)
+                        
+                        Divider().background(Color.obsidianBorder)
+                        
+                        Text("Required iOS Setting:")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.textPrimary)
+                        
+                        HStack(alignment: .top, spacing: 8) {
+                            Text("1.")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.primaryBlue)
+                            Text("Open iPhone Settings > General > Picture in Picture.")
+                                .font(.system(size: 12))
+                                .foregroundColor(.textSecondary)
+                        }
+                        
+                        HStack(alignment: .top, spacing: 8) {
+                            Text("2.")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.primaryBlue)
+                            Text("Turn ON 'Start PiP Automatically' so floating camera activates seamlessly when switching to any app.")
+                                .font(.system(size: 12))
+                                .foregroundColor(.textSecondary)
+                        }
+                        
+                        Button(action: {
+                            if let url = URL(string: UIApplication.openSettingsURLString) {
+                                UIApplication.shared.open(url)
+                            }
+                        }) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "gearshape.fill")
+                                    .font(.system(size: 12))
+                                Text("Open iPhone Settings")
+                                    .font(.system(size: 13, weight: .bold))
+                            }
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 42)
+                            .background(Color.primaryBlue)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
+                        .padding(.top, 4)
+                    }
+                    .padding()
+                }
+                
+                // 4. App Details
                 settingsCard {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("FloatCam Pro for iOS")
                             .font(.system(size: 15, weight: .bold))
                             .foregroundColor(.textPrimary)
-                        Text("Version 1.0.0 • Production Build")
+                        Text("Version 1.0.11 • Build 16 (Production)")
                             .font(.system(size: 12))
                             .foregroundColor(.textSecondary)
                         Text("Built with SwiftUI, AVFoundation, AVPictureInPictureVideoCallViewController, and Photos Scoped Media.")

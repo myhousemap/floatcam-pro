@@ -15,7 +15,7 @@ public struct StudioView: View {
     }
     
     private var isRunning: Bool {
-        isOverlayActive || pipManager.isPiPActive
+        pipManager.isPiPActive
     }
     
     public var body: some View {
@@ -191,6 +191,76 @@ public struct StudioView: View {
                     }
                 }
                 .padding(.horizontal, 20)
+                
+                // iOS System PiP Guidance Banner (For Gemini AI, Meta AI & background float)
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Image(systemName: "pip.fill")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.primaryBlue)
+                        Text("Float Over Any iOS App")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(.textPrimary)
+                        Spacer()
+                        
+                        // Status indicator
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(pipManager.isPiPSupported ? Color.successGreen : Color.recordingRed)
+                                .frame(width: 7, height: 7)
+                            Text(pipManager.isPiPSupported ? "PiP Active" : "Unsupported")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(pipManager.isPiPSupported ? .successGreen : .recordingRed)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Color.obsidianSurfaceVariant)
+                        .clipShape(Capsule())
+                    }
+                    
+                    Text("FloatCam Pro stays floating over Gemini AI, Meta AI, Safari, WhatsApp, and the Home Screen. Tap 'Launch Floating Camera' above to start floating.")
+                        .font(.system(size: 12))
+                        .foregroundColor(.textSecondary)
+                        .lineSpacing(3)
+                    
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Apple iOS Requirement:")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(.textPrimary)
+                            Text("Settings > General > Picture in Picture > Start PiP Automatically: ON")
+                                .font(.system(size: 10))
+                                .foregroundColor(.textMuted)
+                        }
+                        
+                        Spacer()
+                        
+                        Button(action: {
+                            if let url = URL(string: UIApplication.openSettingsURLString) {
+                                UIApplication.shared.open(url)
+                            }
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "gearshape.fill")
+                                    .font(.system(size: 10))
+                                Text("iOS Settings")
+                                    .font(.system(size: 11, weight: .bold))
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Color.primaryBlue.opacity(0.8))
+                            .clipShape(Capsule())
+                        }
+                    }
+                }
+                .padding(14)
+                .background(Color.obsidianSurface)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16).stroke(Color.obsidianBorder, lineWidth: 1)
+                )
+                .padding(.horizontal, 20)
                 .padding(.bottom, 32)
             }
         }
@@ -199,27 +269,32 @@ public struct StudioView: View {
             isPulsing = true
             permissionManager.checkPermissions()
             RemoteControlManager.shared.setupRemoteCommands()
+            if permissionManager.cameraGranted && !cameraManager.isRunning {
+                cameraManager.startSession(settings: settings)
+            }
         }
     }
     
     // MARK: - Actions
     private func toggleFloatingCamera() {
         if isRunning {
-            withAnimation(.spring()) {
-                isOverlayActive = false
-            }
             pipManager.stopPiP()
-            cameraManager.stopSession()
             HapticManager.shared.lightTap()
         } else {
             if !permissionManager.cameraGranted {
-                permissionManager.requestCameraPermission()
+                permissionManager.requestCameraPermission { granted in
+                    if granted {
+                        self.cameraManager.startSession(settings: self.settings)
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            self.pipManager.startPiP()
+                        }
+                    }
+                }
                 return
             }
-            withAnimation(.spring()) {
-                isOverlayActive = true
+            if !cameraManager.isRunning {
+                cameraManager.startSession(settings: settings)
             }
-            cameraManager.startSession(settings: settings)
             pipManager.startPiP()
             HapticManager.shared.mediumTap()
         }
@@ -248,7 +323,7 @@ public struct StudioView: View {
         return Color.obsidianBorder
     }
     
-    // MARK: - StudioMockupCard (1:1 with Android StudioMockupCard)
+    // MARK: - StudioMockupCard (1:1 with Android StudioMockupCard + Live PiP Anchor)
     private var studioMockupCard: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 24)
@@ -261,9 +336,9 @@ public struct StudioView: View {
             // Live Shape Mockup Box
             VStack {
                 ZStack(alignment: .topTrailing) {
-                    // Shape Outline
-                    mockupShape
-                        .fill(Color.obsidianSurfaceVariant.opacity(settings.opacity))
+                    // Live PiP Camera Preview Anchor (Real Dimensions in Window Hierarchy)
+                    PiPView(session: cameraManager.session, settings: settings)
+                        .clipShape(mockupShape)
                         .overlay(
                             mockupShape.stroke(
                                 Color(hex: settings.borderColorHex),
@@ -275,29 +350,41 @@ public struct StudioView: View {
                             height: mockupHeight
                         )
                     
-                    // Mock camera lens representation
-                    VStack(spacing: 6) {
-                        Circle()
-                            .fill(Color.obsidianBackground)
-                            .frame(width: 52, height: 52)
+                    // Fallback placeholder when camera session is not running or permission missing
+                    if !permissionManager.cameraGranted || !cameraManager.isRunning {
+                        mockupShape
+                            .fill(Color.obsidianSurfaceVariant.opacity(0.95))
                             .overlay(
-                                Circle().stroke(Color(hex: settings.borderColorHex).opacity(0.5), lineWidth: 1)
+                                mockupShape.stroke(
+                                    Color(hex: settings.borderColorHex),
+                                    lineWidth: settings.borderWidth
+                                )
                             )
-                            .overlay(
-                                Image(systemName: (settings.lens == .front) ? "person.crop.circle" : "camera.fill")
-                                    .font(.system(size: 26))
-                                    .foregroundColor(Color(hex: settings.borderColorHex))
-                            )
+                            .frame(width: mockupWidth, height: mockupHeight)
                         
-                        Text(settings.shape.rawValue)
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(.textPrimary)
-                        
-                        Text("\(settings.resolution.rawValue) • \(settings.fps.label)")
-                            .font(.system(size: 9))
-                            .foregroundColor(.textSecondary)
+                        VStack(spacing: 6) {
+                            Circle()
+                                .fill(Color.obsidianBackground)
+                                .frame(width: 52, height: 52)
+                                .overlay(
+                                    Circle().stroke(Color(hex: settings.borderColorHex).opacity(0.5), lineWidth: 1)
+                                )
+                                .overlay(
+                                    Image(systemName: (settings.lens == .front) ? "person.crop.circle" : "camera.fill")
+                                        .font(.system(size: 26))
+                                        .foregroundColor(Color(hex: settings.borderColorHex))
+                                )
+                            
+                            Text(settings.shape.rawValue)
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(.textPrimary)
+                            
+                            Text("\(settings.resolution.rawValue) • \(settings.fps.label)")
+                                .font(.system(size: 9))
+                                .foregroundColor(.textSecondary)
+                        }
+                        .frame(width: mockupWidth, height: mockupHeight)
                     }
-                    .frame(width: mockupWidth, height: mockupHeight)
                     
                     // Top corner badge if recording (Matches Android REC badge)
                     if cameraManager.isRecording {
