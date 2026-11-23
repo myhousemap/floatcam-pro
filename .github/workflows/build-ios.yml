@@ -57,8 +57,8 @@ jobs:
           /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName 'FloatCam Pro'" "$PLIST" || \
           /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string 'FloatCam Pro'" "$PLIST"
 
-          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString '1.0.11'" "$PLIST" || \
-          /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string '1.0.11'" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString '1.0.12'" "$PLIST" || \
+          /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string '1.0.12'" "$PLIST"
 
           # Ensure UIBackgroundModes contains audio and voip
           /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" "$PLIST" || true
@@ -84,8 +84,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG_NAME="v1.0.11-build.${{ github.run_number }}"
+          TAG_NAME="v1.0.12-build.${{ github.run_number }}"
           gh release create "$TAG_NAME" build/FloatCamPro.ipa \
             --title "FloatCam Pro iOS ($TAG_NAME)" \
-            --notes "FloatCam Pro iOS v1.0.11 (Production Build 16): Floating camera launch and multi-app float fix. Live PiP anchor embedded in StudioMockupCard with real geometry, synchronous videoChat audio session activation, system PiP launching over Gemini AI, Meta AI, Safari, and Home Screen. Includes full Android HUD controls (timer, torch, mirror, shape, close, flip, shutter, record, resize handle) and iOS PiP Settings guide." \
+            --notes "FloatCam Pro iOS v1.0.12 (Production Build 17): Migrated Picture-in-Picture pipeline to AVSampleBufferDisplayLayer with live AVCaptureVideoDataOutput frame stream. Guarantees isPictureInPicturePossible is true, eliminates video call controller restrictions, activates instant PiP floating over Home Screen, Gemini AI, Meta AI, and Safari. Includes button launch indicator and remote controls." \
             --latest

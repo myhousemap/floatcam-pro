@@ -102,13 +102,22 @@ public struct StudioView: View {
                     toggleFloatingCamera()
                 }) {
                     HStack(spacing: 10) {
-                        Image(systemName: isRunning ? "xmark" : "play.fill")
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundColor(.white)
-                        
-                        Text(isRunning ? "Stop Floating Camera" : "Launch Floating Camera")
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundColor(.white)
+                        if pipManager.isLaunchingPiP {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .frame(width: 20, height: 20)
+                            Text("Starting Floating Camera...")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(.white)
+                        } else {
+                            Image(systemName: isRunning ? "xmark" : "play.fill")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(.white)
+                            
+                            Text(isRunning ? "Stop Floating Camera" : "Launch Floating Camera")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(.white)
+                        }
                     }
                     .frame(maxWidth: .infinity)
                     .frame(height: 58)
@@ -116,6 +125,7 @@ public struct StudioView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 18))
                     .shadow(color: (isRunning ? Color.recordingRed : Color.primaryBlue).opacity(0.4), radius: 6, y: 3)
                 }
+                .disabled(pipManager.isLaunchingPiP)
                 .padding(.horizontal, 20)
                 
                 // Quick Studio Presets (Matches Android ChipCategorySection)

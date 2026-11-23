@@ -14,11 +14,13 @@ public final class CameraManager: NSObject, ObservableObject {
     
     public let session = AVCaptureSession()
     private let sessionQueue = DispatchQueue(label: "com.floatcam.pro.sessionQueue")
+    private let videoDataQueue = DispatchQueue(label: "com.floatcam.pro.videoDataQueue", qos: .userInteractive)
     
     private var videoDeviceInput: AVCaptureDeviceInput?
     private var audioDeviceInput: AVCaptureDeviceInput?
     private let photoOutput = AVCapturePhotoOutput()
     private let movieFileOutput = AVCaptureMovieFileOutput()
+    private let videoDataOutput = AVCaptureVideoDataOutput()
     
     private var recordingTimer: Timer?
     private var tempVideoURL: URL?
@@ -75,6 +77,24 @@ public final class CameraManager: NSObject, ObservableObject {
             if self.session.canAddOutput(self.movieFileOutput) {
                 self.session.addOutput(self.movieFileOutput)
             }
+            if self.session.canAddOutput(self.videoDataOutput) {
+                self.videoDataOutput.videoSettings = [
+                    kCVPixelBufferPixelFormatTypeKey as String: Int(kCVPixelFormatType_32BGRA)
+                ]
+                self.videoDataOutput.alwaysDiscardsLateVideoFrames = true
+                self.videoDataOutput.setSampleBufferDelegate(self, queue: self.videoDataQueue)
+                self.session.addOutput(self.videoDataOutput)
+                
+                if let connection = self.videoDataOutput.connection(with: .video) {
+                    if connection.isVideoOrientationSupported {
+                        connection.videoOrientation = .portrait
+                    }
+                    if connection.isVideoMirroringSupported {
+                        connection.automaticallyAdjustsVideoMirroring = false
+                        connection.isVideoMirrored = (settings.lens == .front && settings.mirrorFrontCamera)
+                    }
+                }
+            }
             
             self.session.commitConfiguration()
             self.session.startRunning()
@@ -110,6 +130,16 @@ public final class CameraManager: NSObject, ObservableObject {
                 self.session.removeInput(currentInput)
             }
             self.setupVideoInput(for: targetLens)
+            
+            if let connection = self.videoDataOutput.connection(with: .video) {
+                if connection.isVideoOrientationSupported {
+                    connection.videoOrientation = .portrait
+                }
+                if connection.isVideoMirroringSupported {
+                    connection.automaticallyAdjustsVideoMirroring = false
+                    connection.isVideoMirrored = (targetLens == .front)
+                }
+            }
             self.session.commitConfiguration()
             
             DispatchQueue.main.async {
@@ -265,5 +295,12 @@ extension CameraManager: AVCaptureFileOutputRecordingDelegate {
         } else {
             print("Video recording failed: \(String(describing: error))")
         }
+    }
+}
+
+// MARK: - Video Data Output Sample Buffer Delegate (Feeds AVSampleBufferDisplayLayer for PiP)
+extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
+    public func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+        PiPManager.shared.enqueue(sampleBuffer: sampleBuffer)
     }
 }
