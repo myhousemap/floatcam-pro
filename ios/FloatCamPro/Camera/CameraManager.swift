@@ -467,11 +467,8 @@ public final class CameraManager: NSObject, ObservableObject {
     
     private func makeBadgedSampleBuffer(from originalSampleBuffer: CMSampleBuffer, duration: TimeInterval, isPaused: Bool) -> CMSampleBuffer? {
         return autoreleasepool { () -> CMSampleBuffer? in
-            guard let originalPixelBuffer = CMSampleBufferGetImageBuffer(originalSampleBuffer) else { return nil }
-            
-            var copiedPixelBuffer: CVPixelBuffer?
-            let status = CVPixelBufferCreateCopy(kCFAllocatorDefault, originalPixelBuffer, &copiedPixelBuffer)
-            guard status == kCVReturnSuccess, let pixelBuffer = copiedPixelBuffer else { return nil }
+            guard let originalPixelBuffer = CMSampleBufferGetImageBuffer(originalSampleBuffer),
+                  let pixelBuffer = originalPixelBuffer.deepCopy() else { return nil }
             
             // Draw recording badge ONLY onto the isolated copied pixel buffer
             self.drawRecordingBadge(on: pixelBuffer, duration: duration, isPaused: isPaused)
@@ -563,7 +560,7 @@ extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate, AVCapture
                 self.appendVideoSampleBuffer(sampleBuffer)
                 
                 // 2. Floating PiP preview displays the live badge on an isolated buffer copy
-                if (self.activeSettings?.showLiveRecordBadge ?? true),
+                if (self.activeSettings?.showLiveRecordBadge ?? false),
                    let badgedBuffer = self.makeBadgedSampleBuffer(from: sampleBuffer, duration: self.recordingDuration, isPaused: self.isPaused) {
                     PiPManager.shared.enqueue(sampleBuffer: badgedBuffer)
                 } else {
@@ -577,5 +574,54 @@ extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate, AVCapture
                 self.appendAudioSampleBuffer(sampleBuffer)
             }
         }
+    }
+}
+
+// MARK: - CVPixelBuffer Deep Copy Helper
+extension CVPixelBuffer {
+    func deepCopy() -> CVPixelBuffer? {
+        let width = CVPixelBufferGetWidth(self)
+        let height = CVPixelBufferGetHeight(self)
+        let formatType = CVPixelBufferGetPixelFormatType(self)
+        let attachments = CVBufferGetAttachments(self, .shouldPropagate)
+        
+        var destinationBuffer: CVPixelBuffer?
+        let status = CVPixelBufferCreate(
+            kCFAllocatorDefault,
+            width,
+            height,
+            formatType,
+            attachments,
+            &destinationBuffer
+        )
+        guard status == kCVReturnSuccess, let copy = destinationBuffer else { return nil }
+        
+        CVPixelBufferLockBaseAddress(self, .readOnly)
+        CVPixelBufferLockBaseAddress(copy, CVPixelBufferLockFlags(rawValue: 0))
+        defer {
+            CVPixelBufferUnlockBaseAddress(copy, CVPixelBufferLockFlags(rawValue: 0))
+            CVPixelBufferUnlockBaseAddress(self, .readOnly)
+        }
+        
+        guard let srcBase = CVPixelBufferGetBaseAddress(self),
+              let destBase = CVPixelBufferGetBaseAddress(copy) else { return copy }
+        
+        let bytesPerRowSrc = CVPixelBufferGetBytesPerRow(self)
+        let bytesPerRowDest = CVPixelBufferGetBytesPerRow(copy)
+        
+        if bytesPerRowSrc == bytesPerRowDest {
+            memcpy(destBase, srcBase, height * bytesPerRowSrc)
+        } else {
+            let rowBytesToCopy = min(bytesPerRowSrc, bytesPerRowDest)
+            var srcRow = srcBase
+            var destRow = destBase
+            for _ in 0..<height {
+                memcpy(destRow, srcRow, rowBytesToCopy)
+                srcRow = srcRow.advanced(by: bytesPerRowSrc)
+                destRow = destRow.advanced(by: bytesPerRowDest)
+            }
+        }
+        
+        return copy
     }
 }
