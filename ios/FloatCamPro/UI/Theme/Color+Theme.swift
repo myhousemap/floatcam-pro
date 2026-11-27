@@ -10,6 +10,7 @@ extension Color {
     public static let primaryBlueDark = Color(hex: "2563EB")
     public static let recordingRed = Color(hex: "FF4D5A")
     public static let recordingRedDark = Color(hex: "D62839")
+    public static let warningAmber = Color(hex: "F59E0B")
     public static let successGreen = Color(hex: "10B981")
     
     public static let textPrimary = Color(hex: "F3F5FA")

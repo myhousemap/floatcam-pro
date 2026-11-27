@@ -422,7 +422,7 @@ public final class CameraManager: NSObject, ObservableObject {
                         allocator: kCFAllocatorDefault,
                         sampleBuffer: sampleBuffer,
                         sampleTimingEntryCount: 1,
-                        timingArray: &timing,
+                        sampleTimingArray: &timing,
                         sampleBufferOut: &adjustedBuffer
                     ) == noErr, let adj = adjustedBuffer {
                         input.append(adj)
@@ -454,7 +454,7 @@ public final class CameraManager: NSObject, ObservableObject {
                     allocator: kCFAllocatorDefault,
                     sampleBuffer: sampleBuffer,
                     sampleTimingEntryCount: 1,
-                    timingArray: &timing,
+                    sampleTimingArray: &timing,
                     sampleBufferOut: &adjustedBuffer
                 ) == noErr, let adj = adjustedBuffer {
                     input.append(adj)
