@@ -20,24 +20,38 @@ public final class RemoteControlManager: NSObject {
         
         let commandCenter = MPRemoteCommandCenter.shared()
         
-        // 1. Play Command -> Start Recording
+        // 1. Play Command -> Start or Resume Recording
         commandCenter.playCommand.isEnabled = true
         commandCenter.playCommand.addTarget { _ in
             Task { @MainActor in
                 if !CameraManager.shared.isRecording {
-                    CameraManager.shared.toggleRecording()
+                    CameraManager.shared.startRecording()
+                } else if CameraManager.shared.isPaused {
+                    CameraManager.shared.resumeRecording()
+                }
+                RemoteControlManager.shared.updateNowPlaying()
+            }
+            return .success
+        }
+        
+        // 2. Pause Command -> Pause Recording
+        commandCenter.pauseCommand.isEnabled = true
+        commandCenter.pauseCommand.addTarget { _ in
+            Task { @MainActor in
+                if CameraManager.shared.isRecording && !CameraManager.shared.isPaused {
+                    CameraManager.shared.pauseRecording()
                     RemoteControlManager.shared.updateNowPlaying()
                 }
             }
             return .success
         }
         
-        // 2. Pause Command -> Stop Recording
-        commandCenter.pauseCommand.isEnabled = true
-        commandCenter.pauseCommand.addTarget { _ in
+        // 3. Stop Command -> Stop Recording & Save to Gallery
+        commandCenter.stopCommand.isEnabled = true
+        commandCenter.stopCommand.addTarget { _ in
             Task { @MainActor in
                 if CameraManager.shared.isRecording {
-                    CameraManager.shared.toggleRecording()
+                    CameraManager.shared.stopRecording()
                     RemoteControlManager.shared.updateNowPlaying()
                 }
             }
@@ -80,16 +94,24 @@ public final class RemoteControlManager: NSObject {
     
     public func updateNowPlaying() {
         let isRec = CameraManager.shared.isRecording
+        let isPaused = CameraManager.shared.isPaused
         let lens = CameraManager.shared.currentLens.rawValue
         let duration = CameraManager.shared.recordingDuration
         
         var info = [String: Any]()
         
         if isRec {
-            info[MPMediaItemPropertyTitle] = "● RECORDING LIVE"
-            info[MPMediaItemPropertyArtist] = "⏱ \(formatDuration(duration)) • \(lens) Camera"
-            info[MPMediaItemPropertyAlbumTitle] = "Tap Pause to Stop • Next to Flip Lens"
-            info[MPNowPlayingInfoPropertyPlaybackRate] = 1.0
+            if isPaused {
+                info[MPMediaItemPropertyTitle] = "❚❚ RECORDING PAUSED"
+                info[MPMediaItemPropertyArtist] = "⏱ \(formatDuration(duration)) • \(lens) Camera"
+                info[MPMediaItemPropertyAlbumTitle] = "Play to Resume • Stop to Save Video"
+                info[MPNowPlayingInfoPropertyPlaybackRate] = 0.0
+            } else {
+                info[MPMediaItemPropertyTitle] = "● RECORDING LIVE"
+                info[MPMediaItemPropertyArtist] = "⏱ \(formatDuration(duration)) • \(lens) Camera"
+                info[MPMediaItemPropertyAlbumTitle] = "Pause to Pause • Stop to Save Video"
+                info[MPNowPlayingInfoPropertyPlaybackRate] = 1.0
+            }
             info[MPMediaItemPropertyPlaybackDuration] = max(1.0, duration)
             info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = duration
         } else {

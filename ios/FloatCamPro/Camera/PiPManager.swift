@@ -94,7 +94,7 @@ public final class PiPManager: NSObject, ObservableObject {
         let controller = AVPictureInPictureController(contentSource: contentSource)
         controller.delegate = self
         controller.canStartPictureInPictureAutomaticallyFromInline = true
-        controller.requiresLinearPlayback = true
+        controller.requiresLinearPlayback = false
         
         self.possibleObservation?.invalidate()
         self.possibleObservation = controller.observe(\.isPictureInPicturePossible, options: [.initial, .new]) { [weak self] ctrl, _ in
@@ -199,6 +199,10 @@ public final class PiPManager: NSObject, ObservableObject {
         HapticManager.shared.lightTap()
     }
     
+    public func invalidatePlaybackState() {
+        pipController?.invalidatePlaybackState()
+    }
+    
     public func pipSize(for shape: ShapePreset) -> CGSize {
         switch shape {
         case .circle, .square1x1:
@@ -218,12 +222,20 @@ extension PiPManager: AVPictureInPictureSampleBufferPlaybackDelegate {
     }
     
     public func pictureInPictureControllerIsPlaybackPaused(_ pictureInPictureController: AVPictureInPictureController) -> Bool {
-        return false
+        return !CameraManager.shared.isRecording || CameraManager.shared.isPaused
     }
     
     public func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, setPlaying playing: Bool) {
         DispatchQueue.main.async {
-            CameraManager.shared.toggleRecording()
+            if !CameraManager.shared.isRecording {
+                CameraManager.shared.startRecording()
+            } else {
+                if playing {
+                    CameraManager.shared.resumeRecording()
+                } else {
+                    CameraManager.shared.pauseRecording()
+                }
+            }
         }
     }
     
@@ -231,7 +243,14 @@ extension PiPManager: AVPictureInPictureSampleBufferPlaybackDelegate {
     }
     
     public func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, skipByInterval skipInterval: CMTime, completion completionHandler: @escaping () -> Void) {
-        completionHandler()
+        DispatchQueue.main.async {
+            if CameraManager.shared.isRecording {
+                CameraManager.shared.stopRecording()
+            } else {
+                CameraManager.shared.flipCamera()
+            }
+            completionHandler()
+        }
     }
 }
 

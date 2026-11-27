@@ -88,5 +88,5 @@ jobs:
           TAG_NAME="v1.0.12-build.${{ github.run_number }}"
           gh release create "$TAG_NAME" build/FloatCamPro.ipa \
             --title "FloatCam Pro iOS ($TAG_NAME)" \
-            --notes "FloatCam Pro iOS v1.0.12 (Production): Complete system-wide Picture-in-Picture floating camera over Home Screen and all iOS apps (Gemini AI, Meta AI, Safari). Built with AVSampleBufferDisplayLayer and live AVCaptureVideoDataOutput frame stream, AVAssetWriter hardware-accelerated video recording, and instant Launch Floating Camera control." \
+            --notes "FloatCam Pro iOS v1.0.12 (Build 22): Universal floating camera with on-screen live record timer HUD, clickable Play/Pause/Resume & Stop controls right inside the floating PiP window, and instant direct saving to iPhone Photos Gallery." \
             --latest

@@ -264,7 +264,7 @@ public struct SettingsView: View {
                         Text("FloatCam Pro for iOS")
                             .font(.system(size: 15, weight: .bold))
                             .foregroundColor(.textPrimary)
-                        Text("Version 1.0.12 • Build 20 (Production)")
+                        Text("Version 1.0.12 • Build 22 (Production)")
                             .font(.system(size: 12))
                             .foregroundColor(.textSecondary)
                         Text("Built with SwiftUI, AVFoundation, AVSampleBufferDisplayLayer, and Photos Scoped Media.")

@@ -312,13 +312,17 @@ public struct StudioView: View {
     
     // MARK: - Status Pill Helpers
     private var statusDotColor: Color {
-        if cameraManager.isRecording { return Color.recordingRed }
+        if cameraManager.isRecording {
+            return cameraManager.isPaused ? Color.warningAmber : Color.recordingRed
+        }
         if isRunning { return Color.successGreen }
         return Color.textMuted
     }
     
     private var statusText: String {
-        if cameraManager.isRecording { return "RECORDING" }
+        if cameraManager.isRecording {
+            return cameraManager.isPaused ? "PAUSED" : "RECORDING"
+        }
         if isRunning { return "OVERLAY ACTIVE" }
         return "STANDBY"
     }

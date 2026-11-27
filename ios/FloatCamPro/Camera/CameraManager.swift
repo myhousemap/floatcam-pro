@@ -2,13 +2,16 @@ import AVFoundation
 import UIKit
 import CoreMedia
 import CoreVideo
+import CoreText
 import AudioToolbox
+import Photos
 
 public final class CameraManager: NSObject, ObservableObject {
     public static let shared = CameraManager()
     
     @Published public var isRunning: Bool = false
     @Published public var isRecording: Bool = false
+    @Published public var isPaused: Bool = false
     @Published public var recordingDuration: TimeInterval = 0
     @Published public var isTorchOn: Bool = false
     @Published public var currentLens: CameraLens = .front
@@ -33,6 +36,10 @@ public final class CameraManager: NSObject, ObservableObject {
     private var assetWriterAudioInput: AVAssetWriterInput?
     private var isAssetWriterSessionStarted: Bool = false
     private var activeSettings: CameraSettings?
+    
+    private var isWriterPaused: Bool = false
+    private var pauseStartTime: CMTime = .zero
+    private var totalPausedDuration: CMTime = .zero
     
     private override init() {
         super.init()
@@ -212,14 +219,16 @@ public final class CameraManager: NSObject, ObservableObject {
     }
     
     public func toggleRecording() {
-        if isRecording {
-            stopRecording()
-        } else {
+        if !isRecording {
             startRecording()
+        } else if isPaused {
+            resumeRecording()
+        } else {
+            pauseRecording()
         }
     }
     
-    private func startRecording() {
+    public func startRecording() {
         guard !isRecording, AVCaptureDevice.authorizationStatus(for: .video) == .authorized else { return }
         
         let tempDir = FileManager.default.temporaryDirectory
@@ -238,6 +247,9 @@ public final class CameraManager: NSObject, ObservableObject {
                 self.assetWriterVideoInput = nil
                 self.assetWriterAudioInput = nil
                 self.isAssetWriterSessionStarted = false
+                self.isWriterPaused = false
+                self.pauseStartTime = .zero
+                self.totalPausedDuration = .zero
             } catch {
                 print("Failed to initialize AVAssetWriter: \(error)")
                 return
@@ -245,13 +257,15 @@ public final class CameraManager: NSObject, ObservableObject {
             
             DispatchQueue.main.async {
                 self.isRecording = true
+                self.isPaused = false
                 self.recordingDuration = 0
                 PiPManager.shared.updateHUD(isRecording: true, duration: 0, lens: self.currentLens)
+                PiPManager.shared.invalidatePlaybackState()
                 RemoteControlManager.shared.updateNowPlaying()
                 HapticManager.shared.recordHaptic()
                 
                 self.recordingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-                    guard let self = self else { return }
+                    guard let self = self, self.isRecording, !self.isPaused else { return }
                     self.recordingDuration += 1
                     PiPManager.shared.updateHUD(isRecording: true, duration: self.recordingDuration, lens: self.currentLens)
                 }
@@ -259,14 +273,54 @@ public final class CameraManager: NSObject, ObservableObject {
         }
     }
     
-    private func stopRecording() {
+    public func pauseRecording() {
+        guard isRecording, !isPaused else { return }
+        
+        DispatchQueue.main.async {
+            self.isPaused = true
+            PiPManager.shared.invalidatePlaybackState()
+            RemoteControlManager.shared.updateNowPlaying()
+            HapticManager.shared.lightTap()
+        }
+        
+        recordingQueue.async { [weak self] in
+            guard let self = self else { return }
+            self.isWriterPaused = true
+            self.pauseStartTime = CMClockGetTime(CMClockGetHostTimeClock())
+        }
+    }
+    
+    public func resumeRecording() {
+        guard isRecording, isPaused else { return }
+        
+        DispatchQueue.main.async {
+            self.isPaused = false
+            PiPManager.shared.invalidatePlaybackState()
+            RemoteControlManager.shared.updateNowPlaying()
+            HapticManager.shared.lightTap()
+        }
+        
+        recordingQueue.async { [weak self] in
+            guard let self = self else { return }
+            self.isWriterPaused = false
+            let resumeTime = CMClockGetTime(CMClockGetHostTimeClock())
+            if self.pauseStartTime != .zero {
+                let pausedDuration = CMTimeSubtract(resumeTime, self.pauseStartTime)
+                self.totalPausedDuration = CMTimeAdd(self.totalPausedDuration, pausedDuration)
+            }
+        }
+    }
+    
+    public func stopRecording() {
         guard isRecording else { return }
         
         DispatchQueue.main.async {
             self.isRecording = false
+            self.isPaused = false
             self.recordingTimer?.invalidate()
             self.recordingTimer = nil
             PiPManager.shared.updateHUD(isRecording: false, duration: 0, lens: self.currentLens)
+            PiPManager.shared.invalidatePlaybackState()
             RemoteControlManager.shared.updateNowPlaying()
             HapticManager.shared.recordHaptic()
         }
@@ -284,10 +338,16 @@ public final class CameraManager: NSObject, ObservableObject {
                 self.assetWriterVideoInput = nil
                 self.assetWriterAudioInput = nil
                 self.isAssetWriterSessionStarted = false
+                self.isWriterPaused = false
+                self.totalPausedDuration = .zero
                 
                 if let url = url, writer.status == .completed {
                     DispatchQueue.main.async {
-                        MediaManager.shared.saveVideo(at: url) { _ in }
+                        MediaManager.shared.saveVideo(at: url) { success in
+                            if !success {
+                                UISaveVideoAtPathToSavedPhotosAlbum(url.path, nil, nil, nil)
+                            }
+                        }
                     }
                 }
             }
@@ -296,7 +356,7 @@ public final class CameraManager: NSObject, ObservableObject {
     
     private func appendVideoSampleBuffer(_ sampleBuffer: CMSampleBuffer) {
         recordingQueue.async { [weak self] in
-            guard let self = self, self.isRecording, let writer = self.assetWriter else { return }
+            guard let self = self, self.isRecording, !self.isWriterPaused, let writer = self.assetWriter else { return }
             
             let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
             if !self.isAssetWriterSessionStarted {
@@ -351,18 +411,133 @@ public final class CameraManager: NSObject, ObservableObject {
             }
             
             if self.isAssetWriterSessionStarted, writer.status == .writing, let input = self.assetWriterVideoInput, input.isReadyForMoreMediaData {
-                input.append(sampleBuffer)
+                if self.totalPausedDuration > .zero {
+                    var timing = CMSampleTimingInfo(
+                        duration: sampleBuffer.duration,
+                        presentationTimeStamp: CMTimeSubtract(pts, self.totalPausedDuration),
+                        decodeTimeStamp: sampleBuffer.decodeTimeStamp == .invalid ? .invalid : CMTimeSubtract(sampleBuffer.decodeTimeStamp, self.totalPausedDuration)
+                    )
+                    var adjustedBuffer: CMSampleBuffer?
+                    if CMSampleBufferCreateCopyWithNewTiming(
+                        allocator: kCFAllocatorDefault,
+                        sampleBuffer: sampleBuffer,
+                        sampleTimingEntryCount: 1,
+                        timingArray: &timing,
+                        sampleBufferOut: &adjustedBuffer
+                    ) == noErr, let adj = adjustedBuffer {
+                        input.append(adj)
+                    } else {
+                        input.append(sampleBuffer)
+                    }
+                } else {
+                    input.append(sampleBuffer)
+                }
             }
         }
     }
     
     private func appendAudioSampleBuffer(_ sampleBuffer: CMSampleBuffer) {
         recordingQueue.async { [weak self] in
-            guard let self = self, self.isRecording, self.isAssetWriterSessionStarted,
+            guard let self = self, self.isRecording, !self.isWriterPaused, self.isAssetWriterSessionStarted,
                   let writer = self.assetWriter, writer.status == .writing,
                   let input = self.assetWriterAudioInput, input.isReadyForMoreMediaData else { return }
-            input.append(sampleBuffer)
+            
+            if self.totalPausedDuration > .zero {
+                let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+                var timing = CMSampleTimingInfo(
+                    duration: sampleBuffer.duration,
+                    presentationTimeStamp: CMTimeSubtract(pts, self.totalPausedDuration),
+                    decodeTimeStamp: sampleBuffer.decodeTimeStamp == .invalid ? .invalid : CMTimeSubtract(sampleBuffer.decodeTimeStamp, self.totalPausedDuration)
+                )
+                var adjustedBuffer: CMSampleBuffer?
+                if CMSampleBufferCreateCopyWithNewTiming(
+                    allocator: kCFAllocatorDefault,
+                    sampleBuffer: sampleBuffer,
+                    sampleTimingEntryCount: 1,
+                    timingArray: &timing,
+                    sampleBufferOut: &adjustedBuffer
+                ) == noErr, let adj = adjustedBuffer {
+                    input.append(adj)
+                } else {
+                    input.append(sampleBuffer)
+                }
+            } else {
+                input.append(sampleBuffer)
+            }
         }
+    }
+    
+    private func drawRecordingBadge(on pixelBuffer: CVPixelBuffer, duration: TimeInterval, isPaused: Bool) {
+        CVPixelBufferLockBaseAddress(pixelBuffer, [])
+        defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, []) }
+        
+        let width = CVPixelBufferGetWidth(pixelBuffer)
+        let height = CVPixelBufferGetHeight(pixelBuffer)
+        guard let baseAddress = CVPixelBufferGetBaseAddress(pixelBuffer) else { return }
+        let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let bitmapInfo = CGBitmapInfo.byteOrder32Little.rawValue | CGImageAlphaInfo.premultipliedFirst.rawValue
+        
+        guard let context = CGContext(
+            data: baseAddress,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: bytesPerRow,
+            space: colorSpace,
+            bitmapInfo: bitmapInfo
+        ) else { return }
+        
+        let totalSec = Int(duration)
+        let min = totalSec / 60
+        let sec = totalSec % 60
+        let timeStr = String(format: "%02d:%02d", min, sec)
+        
+        let scale = max(1.0, CGFloat(width) / 720.0)
+        let badgeWidth: CGFloat = 260 * scale
+        let badgeHeight: CGFloat = 64 * scale
+        let badgeX: CGFloat = (CGFloat(width) - badgeWidth) / 2.0
+        let badgeY: CGFloat = CGFloat(height) - (120 * scale)
+        let badgeRect = CGRect(x: badgeX, y: badgeY, width: badgeWidth, height: badgeHeight)
+        
+        context.saveGState()
+        
+        // 1. Semi-transparent dark pill background
+        context.setFillColor(UIColor(red: 0.05, green: 0.06, blue: 0.08, alpha: 0.85).cgColor)
+        let pillPath = UIBezierPath(roundedRect: badgeRect, cornerRadius: badgeHeight / 2.0)
+        context.addPath(pillPath.cgPath)
+        context.fillPath()
+        
+        // 2. Pill Border
+        context.setStrokeColor(UIColor.white.withAlphaComponent(0.25).cgColor)
+        context.setLineWidth(1.5 * scale)
+        context.addPath(pillPath.cgPath)
+        context.strokePath()
+        
+        // 3. Status Indicator Dot (Red = Recording, Yellow = Paused)
+        let dotRadius: CGFloat = 8 * scale
+        let dotCenter = CGPoint(x: badgeX + (22 * scale) + dotRadius, y: badgeY + (badgeHeight / 2.0))
+        let dotRect = CGRect(x: dotCenter.x - dotRadius, y: dotCenter.y - dotRadius, width: dotRadius * 2, height: dotRadius * 2)
+        let dotColor = isPaused ? UIColor.systemYellow.cgColor : UIColor.systemRed.cgColor
+        context.setFillColor(dotColor)
+        context.fillEllipse(in: dotRect)
+        
+        // 4. Timer Text ("REC 00:15" / "PAUSE 00:15")
+        let text = isPaused ? "PAUSE \(timeStr)" : "REC \(timeStr)"
+        let fontSize: CGFloat = 24 * scale
+        let font = UIFont.monospacedDigitSystemFont(ofSize: fontSize, weight: .bold)
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: UIColor.white
+        ]
+        let attrString = NSAttributedString(string: text, attributes: attrs)
+        let line = CTLineCreateWithAttributedString(attrString)
+        let textX = badgeX + (44 * scale) + (dotRadius * 2)
+        let textY = badgeY + (badgeHeight / 2.0) - (fontSize / 2.8)
+        context.textPosition = CGPoint(x: textX, y: textY)
+        CTLineDraw(line, context)
+        
+        context.restoreGState()
     }
     
     private func setupVideoInput(for lens: CameraLens) {
@@ -406,10 +581,15 @@ extension CameraManager: AVCapturePhotoCaptureDelegate {
 extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAudioDataOutputSampleBufferDelegate {
     public func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         if output == self.videoDataOutput {
-            PiPManager.shared.enqueue(sampleBuffer: sampleBuffer)
             if self.isRecording {
                 self.appendVideoSampleBuffer(sampleBuffer)
+                
+                // Render live recording badge and timer directly onto sample buffer for PiP floating display
+                if let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) {
+                    self.drawRecordingBadge(on: pixelBuffer, duration: self.recordingDuration, isPaused: self.isPaused)
+                }
             }
+            PiPManager.shared.enqueue(sampleBuffer: sampleBuffer)
         } else if output == self.audioDataOutput {
             if self.isRecording {
                 self.appendAudioSampleBuffer(sampleBuffer)
