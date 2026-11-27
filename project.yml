@@ -17,7 +17,7 @@ targets:
       properties:
         CFBundleDisplayName: "FloatCam Pro"
         CFBundleShortVersionString: "1.0.12"
-        CFBundleVersion: "22"
+        CFBundleVersion: "24"
         NSCameraUsageDescription: "FloatCam Pro requires camera access to preview and capture photos and video in floating overlay and Picture-in-Picture mode."
         NSMicrophoneUsageDescription: "FloatCam Pro requires microphone access to record clear audio during floating camera recordings."
         NSPhotoLibraryUsageDescription: "FloatCam Pro requires access to your photo library to save and display captured photos and videos."
@@ -43,5 +43,5 @@ targets:
         INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "FloatCam Pro requires access to your photo library to save and display captured photos and videos."
         INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: "FloatCam Pro requires permission to save photos and video captures to your camera roll."
         SWIFT_VERSION: "5.9"
-        CURRENT_PROJECT_VERSION: 22
+        CURRENT_PROJECT_VERSION: 24
         MARKETING_VERSION: "1.0.12"

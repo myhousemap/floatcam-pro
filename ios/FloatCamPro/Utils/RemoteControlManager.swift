@@ -20,26 +20,24 @@ public final class RemoteControlManager: NSObject {
         
         let commandCenter = MPRemoteCommandCenter.shared()
         
-        // 1. Play Command -> Start or Resume Recording
+        // 1. Play Command -> Start Recording
         commandCenter.playCommand.isEnabled = true
         commandCenter.playCommand.addTarget { _ in
             Task { @MainActor in
                 if !CameraManager.shared.isRecording {
                     CameraManager.shared.startRecording()
-                } else if CameraManager.shared.isPaused {
-                    CameraManager.shared.resumeRecording()
                 }
                 RemoteControlManager.shared.updateNowPlaying()
             }
             return .success
         }
         
-        // 2. Pause Command -> Pause Recording
+        // 2. Pause Command -> Stop Recording & Save
         commandCenter.pauseCommand.isEnabled = true
         commandCenter.pauseCommand.addTarget { _ in
             Task { @MainActor in
-                if CameraManager.shared.isRecording && !CameraManager.shared.isPaused {
-                    CameraManager.shared.pauseRecording()
+                if CameraManager.shared.isRecording {
+                    CameraManager.shared.stopRecording()
                     RemoteControlManager.shared.updateNowPlaying()
                 }
             }
@@ -94,30 +92,22 @@ public final class RemoteControlManager: NSObject {
     
     public func updateNowPlaying() {
         let isRec = CameraManager.shared.isRecording
-        let isPaused = CameraManager.shared.isPaused
         let lens = CameraManager.shared.currentLens.rawValue
         let duration = CameraManager.shared.recordingDuration
         
         var info = [String: Any]()
         
         if isRec {
-            if isPaused {
-                info[MPMediaItemPropertyTitle] = "❚❚ RECORDING PAUSED"
-                info[MPMediaItemPropertyArtist] = "⏱ \(formatDuration(duration)) • \(lens) Camera"
-                info[MPMediaItemPropertyAlbumTitle] = "Play to Resume • Stop to Save Video"
-                info[MPNowPlayingInfoPropertyPlaybackRate] = 0.0
-            } else {
-                info[MPMediaItemPropertyTitle] = "● RECORDING LIVE"
-                info[MPMediaItemPropertyArtist] = "⏱ \(formatDuration(duration)) • \(lens) Camera"
-                info[MPMediaItemPropertyAlbumTitle] = "Pause to Pause • Stop to Save Video"
-                info[MPNowPlayingInfoPropertyPlaybackRate] = 1.0
-            }
+            info[MPMediaItemPropertyTitle] = "● RECORDING LIVE"
+            info[MPMediaItemPropertyArtist] = "⏱ \(formatDuration(duration)) • \(lens) Camera"
+            info[MPMediaItemPropertyAlbumTitle] = "Tap Pause to Stop & Save Video"
+            info[MPNowPlayingInfoPropertyPlaybackRate] = 1.0
             info[MPMediaItemPropertyPlaybackDuration] = max(1.0, duration)
             info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = duration
         } else {
             info[MPMediaItemPropertyTitle] = "FloatCam Pro — Camera Active"
             info[MPMediaItemPropertyArtist] = "\(lens) Camera Ready"
-            info[MPMediaItemPropertyAlbumTitle] = "Control Center: Play to Record • Next to Flip"
+            info[MPMediaItemPropertyAlbumTitle] = "Tap Play to Start Recording"
             info[MPNowPlayingInfoPropertyPlaybackRate] = 0.0
         }
         

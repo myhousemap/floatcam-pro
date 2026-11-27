@@ -94,7 +94,7 @@ public final class PiPManager: NSObject, ObservableObject {
         let controller = AVPictureInPictureController(contentSource: contentSource)
         controller.delegate = self
         controller.canStartPictureInPictureAutomaticallyFromInline = true
-        controller.requiresLinearPlayback = false
+        controller.requiresLinearPlayback = true
         
         self.possibleObservation?.invalidate()
         self.possibleObservation = controller.observe(\.isPictureInPicturePossible, options: [.initial, .new]) { [weak self] ctrl, _ in
@@ -222,19 +222,15 @@ extension PiPManager: AVPictureInPictureSampleBufferPlaybackDelegate {
     }
     
     public func pictureInPictureControllerIsPlaybackPaused(_ pictureInPictureController: AVPictureInPictureController) -> Bool {
-        return !CameraManager.shared.isRecording || CameraManager.shared.isPaused
+        return !CameraManager.shared.isRecording
     }
     
     public func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, setPlaying playing: Bool) {
         DispatchQueue.main.async {
-            if !CameraManager.shared.isRecording {
+            if playing {
                 CameraManager.shared.startRecording()
             } else {
-                if playing {
-                    CameraManager.shared.resumeRecording()
-                } else {
-                    CameraManager.shared.pauseRecording()
-                }
+                CameraManager.shared.stopRecording()
             }
         }
     }
@@ -247,7 +243,7 @@ extension PiPManager: AVPictureInPictureSampleBufferPlaybackDelegate {
             if CameraManager.shared.isRecording {
                 CameraManager.shared.stopRecording()
             } else {
-                CameraManager.shared.flipCamera()
+                CameraManager.shared.startRecording()
             }
             completionHandler()
         }

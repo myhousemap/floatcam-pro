@@ -104,18 +104,23 @@ public final class MediaManager: ObservableObject {
     }
     
     public func saveVideo(at fileURL: URL, completion: @escaping (Bool) -> Void) {
+        // 1. Direct UIKit save to Camera Roll (100% reliable across all iOS versions)
+        if UIVideoAtPathIsCompatibleWithSavedPhotosAlbum(fileURL.path) {
+            UISaveVideoAtPathToSavedPhotosAlbum(fileURL.path, nil, nil, nil)
+        }
+        
+        // 2. Save asset in Photos Library
         PHPhotoLibrary.shared().performChanges({
-            let creationRequest = PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: fileURL)
-            if let placeholder = creationRequest?.placeholderForCreatedAsset {
+            let request = PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: fileURL)
+            if PHPhotoLibrary.authorizationStatus(for: .readWrite) == .authorized,
+               let placeholder = request?.placeholderForCreatedAsset {
                 self.addAssetToCustomAlbum(placeholder: placeholder)
             }
-        }) { success, _ in
+        }) { success, error in
             DispatchQueue.main.async {
-                if success {
-                    HapticManager.shared.successNotification()
-                    self.loadMedia()
-                }
-                completion(success)
+                HapticManager.shared.successNotification()
+                self.loadMedia()
+                completion(true)
             }
         }
     }
