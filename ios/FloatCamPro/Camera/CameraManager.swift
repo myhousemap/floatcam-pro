@@ -312,6 +312,7 @@ public final class CameraManager: NSObject, ObservableObject {
                     DispatchQueue.main.async {
                         MediaManager.shared.saveVideo(at: url) { success in
                             print("Save video completion success: \(success)")
+                            try? FileManager.default.removeItem(at: url)
                         }
                     }
                 }

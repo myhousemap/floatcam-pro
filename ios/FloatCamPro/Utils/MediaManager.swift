@@ -104,22 +104,35 @@ public final class MediaManager: ObservableObject {
     }
     
     public func saveVideo(at fileURL: URL, completion: @escaping (Bool) -> Void) {
-        // 1. Direct UIKit save to Camera Roll (100% reliable across all iOS versions)
-        if UIVideoAtPathIsCompatibleWithSavedPhotosAlbum(fileURL.path) {
-            UISaveVideoAtPathToSavedPhotosAlbum(fileURL.path, nil, nil, nil)
-        }
+        let authStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
         
-        // 2. Save asset in Photos Library
-        PHPhotoLibrary.shared().performChanges({
-            let request = PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: fileURL)
-            if PHPhotoLibrary.authorizationStatus(for: .readWrite) == .authorized,
-               let placeholder = request?.placeholderForCreatedAsset {
-                self.addAssetToCustomAlbum(placeholder: placeholder)
+        if authStatus == .authorized || authStatus == .limited {
+            // Primary: Save directly to Photo Library and add to "FloatCam Pro" dedicated album (exactly 1 video)
+            PHPhotoLibrary.shared().performChanges({
+                let request = PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: fileURL)
+                if let placeholder = request?.placeholderForCreatedAsset {
+                    self.addAssetToCustomAlbum(placeholder: placeholder)
+                }
+            }) { success, error in
+                if !success {
+                    print("PHPhotoLibrary save error: \(String(describing: error)), falling back to UIKit")
+                    if UIVideoAtPathIsCompatibleWithSavedPhotosAlbum(fileURL.path) {
+                        UISaveVideoAtPathToSavedPhotosAlbum(fileURL.path, nil, nil, nil)
+                    }
+                }
+                DispatchQueue.main.async {
+                    HapticManager.shared.successNotification()
+                    self.loadMedia()
+                    completion(true)
+                }
             }
-        }) { success, error in
+        } else {
+            // Fallback: If readWrite permission is not granted (e.g. Add-only mode), save via UIKit (exactly 1 video)
+            if UIVideoAtPathIsCompatibleWithSavedPhotosAlbum(fileURL.path) {
+                UISaveVideoAtPathToSavedPhotosAlbum(fileURL.path, nil, nil, nil)
+            }
             DispatchQueue.main.async {
                 HapticManager.shared.successNotification()
-                self.loadMedia()
                 completion(true)
             }
         }
