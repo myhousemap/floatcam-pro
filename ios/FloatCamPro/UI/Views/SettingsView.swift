@@ -101,6 +101,22 @@ public struct SettingsView: View {
                     }
                     .tint(Color.primaryBlue)
                     .padding()
+                    
+                    Divider().background(Color.obsidianBorder)
+                    
+                    // Live Floating Record Timer
+                    Toggle(isOn: $settings.showLiveRecordBadge) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Show Live Timer in Floating Window")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundColor(.textPrimary)
+                            Text("Shows recording indicator in PiP only. Saved gallery videos are always 100% clean.")
+                                .font(.system(size: 12))
+                                .foregroundColor(.textSecondary)
+                        }
+                    }
+                    .tint(Color.primaryBlue)
+                    .padding()
                 }
                 
                 // 2. Overlay & Styling
@@ -264,7 +280,7 @@ public struct SettingsView: View {
                         Text("FloatCam Pro for iOS")
                             .font(.system(size: 15, weight: .bold))
                             .foregroundColor(.textPrimary)
-                        Text("Version 1.0.12 • Build 24 (Production)")
+                        Text("Version 1.0.12 • Build 25 (Production)")
                             .font(.system(size: 12))
                             .foregroundColor(.textSecondary)
                         Text("Built with SwiftUI, AVFoundation, AVSampleBufferDisplayLayer, and Photos Scoped Media.")

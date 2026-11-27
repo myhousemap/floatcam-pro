@@ -57,6 +57,7 @@ public struct CameraSettings: Codable {
     public var keepScreenOn: Bool = true
     public var autoHideHudTimeout: Double = 3.0
     public var enableSystemPiP: Bool = true
+    public var showLiveRecordBadge: Bool = true
     
     public init() {}
 }

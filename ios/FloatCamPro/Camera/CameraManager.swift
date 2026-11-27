@@ -465,6 +465,57 @@ public final class CameraManager: NSObject, ObservableObject {
         context.restoreGState()
     }
     
+    private func makeBadgedSampleBuffer(from originalSampleBuffer: CMSampleBuffer, duration: TimeInterval, isPaused: Bool) -> CMSampleBuffer? {
+        return autoreleasepool { () -> CMSampleBuffer? in
+            guard let originalPixelBuffer = CMSampleBufferGetImageBuffer(originalSampleBuffer) else { return nil }
+            
+            var copiedPixelBuffer: CVPixelBuffer?
+            let status = CVPixelBufferCreateCopy(kCFAllocatorDefault, originalPixelBuffer, &copiedPixelBuffer)
+            guard status == kCVReturnSuccess, let pixelBuffer = copiedPixelBuffer else { return nil }
+            
+            // Draw recording badge ONLY onto the isolated copied pixel buffer
+            self.drawRecordingBadge(on: pixelBuffer, duration: duration, isPaused: isPaused)
+            
+            var formatDescription: CMVideoFormatDescription?
+            let statusDesc = CMVideoFormatDescriptionCreateForImageBuffer(
+                allocator: kCFAllocatorDefault,
+                imageBuffer: pixelBuffer,
+                formatDescriptionOut: &formatDescription
+            )
+            guard statusDesc == noErr, let formatDesc = formatDescription else { return nil }
+            
+            var timingInfo = CMSampleTimingInfo(
+                duration: CMSampleBufferGetDuration(originalSampleBuffer),
+                presentationTimeStamp: CMSampleBufferGetPresentationTimeStamp(originalSampleBuffer),
+                decodeTimeStamp: CMSampleBufferGetDecodeTimeStamp(originalSampleBuffer)
+            )
+            
+            var badgedBuffer: CMSampleBuffer?
+            let statusBuffer = CMSampleBufferCreateReadyWithImageBuffer(
+                allocator: kCFAllocatorDefault,
+                imageBuffer: pixelBuffer,
+                formatDescription: formatDesc,
+                sampleTiming: &timingInfo,
+                sampleBufferOut: &badgedBuffer
+            )
+            
+            guard statusBuffer == noErr, let buffer = badgedBuffer else { return nil }
+            
+            // Mark for immediate display in AVSampleBufferDisplayLayer
+            if let attachmentsArray = CMSampleBufferGetSampleAttachmentsArray(buffer, createIfNecessary: true) {
+                if CFArrayGetCount(attachmentsArray) > 0 {
+                    let element = CFArrayGetValueAtIndex(attachmentsArray, 0)
+                    let dict = unsafeBitCast(element, to: CFMutableDictionary.self)
+                    let key = Unmanaged.passUnretained(kCMSampleAttachmentKey_DisplayImmediately).toOpaque()
+                    let value = Unmanaged.passUnretained(kCFBooleanTrue).toOpaque()
+                    CFDictionarySetValue(dict, key, value)
+                }
+            }
+            
+            return buffer
+        }
+    }
+    
     private func setupVideoInput(for lens: CameraLens) {
         let position: AVCaptureDevice.Position = (lens == .front) ? .front : .back
         guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position),
@@ -507,14 +558,20 @@ extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate, AVCapture
     public func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         if output == self.videoDataOutput {
             if self.isRecording {
+                // 1. Pristine original camera buffer is written directly to the recording file.
+                // ZERO text, ZERO badges, ZERO timestamps in the saved video.
                 self.appendVideoSampleBuffer(sampleBuffer)
                 
-                // Render live recording badge and timer directly onto sample buffer for PiP floating display
-                if let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) {
-                    self.drawRecordingBadge(on: pixelBuffer, duration: self.recordingDuration, isPaused: self.isPaused)
+                // 2. Floating PiP preview displays the live badge on an isolated buffer copy
+                if (self.activeSettings?.showLiveRecordBadge ?? true),
+                   let badgedBuffer = self.makeBadgedSampleBuffer(from: sampleBuffer, duration: self.recordingDuration, isPaused: self.isPaused) {
+                    PiPManager.shared.enqueue(sampleBuffer: badgedBuffer)
+                } else {
+                    PiPManager.shared.enqueue(sampleBuffer: sampleBuffer)
                 }
+            } else {
+                PiPManager.shared.enqueue(sampleBuffer: sampleBuffer)
             }
-            PiPManager.shared.enqueue(sampleBuffer: sampleBuffer)
         } else if output == self.audioDataOutput {
             if self.isRecording {
                 self.appendAudioSampleBuffer(sampleBuffer)

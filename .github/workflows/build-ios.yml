@@ -88,5 +88,5 @@ jobs:
           TAG_NAME="v1.0.12-build.${{ github.run_number }}"
           gh release create "$TAG_NAME" build/FloatCamPro.ipa \
             --title "FloatCam Pro iOS ($TAG_NAME)" \
-            --notes "FloatCam Pro iOS v1.0.12 (Build 24): Dedicated Record and Stop controls right in the floating camera window, guaranteed video saving directly to iPhone Photos Camera Roll via dual-layer UIKit & Photos APIs, and real-time on-screen REC timer badge." \
+            --notes "FloatCam Pro iOS v1.0.12 (Build 25): Pristine video recording guarantee with zero timer text burned into saved videos in Photos Gallery, isolated real-time floating PiP preview buffer with live REC timer, dual-layer Camera Roll saving, and dedicated Record & Stop PiP controls." \
             --latest
